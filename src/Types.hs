@@ -26,7 +26,7 @@ data Company
   | Fiesta
   | Wonder
   | Centennial
-  | Impose
+  | Imperious
   deriving (Enum, Eq, Show, Ord)
 
 -- | The collection of scorable assets held by a player (or the bank)
