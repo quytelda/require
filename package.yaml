@@ -20,6 +20,7 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/quytelda/require#readme>
 
 dependencies:
+- attoparsec >= 0.14.4
 - async >= 2.2.5 && < 3
 - base >= 4.7 && < 5
 - bytestring >= 0.11.5
