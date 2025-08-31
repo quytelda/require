@@ -27,6 +27,13 @@ lexeme = takeTill isSpace
 boundary :: Parser ()
 boundary = space *> skipSpace
 
+quotedString :: Parser ByteString
+quotedString = do
+  void $ char '"'
+  str <- takeTill (== '"')
+  void $ char '"'
+  return str
+
 company :: Parser Company
 company = string "Triangle" *> pure Triangle
           <|> string "Love" *> pure Love
@@ -51,6 +58,7 @@ event = do
   skipSpace
 
   case action of
+    "NAME"    -> NameEvent pid <$> quotedString
     "DRAW"    -> DrawEvent pid <$> optional coord
     "PLAY"    -> PlayEvent pid <$> coord
     "DISCARD" -> DiscardEvent pid <$> coord

@@ -1,5 +1,7 @@
 module Types where
 
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
@@ -44,7 +46,8 @@ defaultBankAssets = Assets
   }
 
 data Event
-  = DrawEvent    PlayerId (Maybe Coord) -- ^ Draw a tile
+  = NameEvent    PlayerId ByteString    -- ^ Change a player's display name
+  | DrawEvent    PlayerId (Maybe Coord) -- ^ Draw a tile
   | PlayEvent    PlayerId Coord -- ^ Put a tile on the board
   | DiscardEvent PlayerId Coord -- ^ Discard an unusable tile
   | ReturnEvent  PlayerId Coord -- ^ Return a pile to the pool
