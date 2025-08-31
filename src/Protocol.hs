@@ -2,13 +2,24 @@
 
 module Protocol where
 
+import           Conduit
 import           Control.Applicative
 import           Control.Monad
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString                  as BS
+import           Data.Conduit.Attoparsec
 
 import           Types
+
+--------------------------------------------------------------------------------
+-- Conduits
+
+parseEvents :: MonadThrow m => ConduitT ByteString Event m ()
+parseEvents = conduitParser (event <* (endOfLine <|> endOfInput)) .| mapC snd
+
+--------------------------------------------------------------------------------
+-- Parsers
 
 lexeme :: Parser ByteString
 lexeme = takeTill isSpace
