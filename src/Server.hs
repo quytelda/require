@@ -39,6 +39,9 @@ registerPlayer server appData = do
   writeTVar (serverClients server) (Map.insert newPlayerId newPlayer clientMap)
   return newPlayer
 
+unregisterPlayer :: Server -> Player -> STM ()
+unregisterPlayer server = modifyTVar' (serverClients server) . Map.delete . playerId
+
 sinkSendQueue :: MonadResource m => Server -> ConduitT Event o m ()
 sinkSendQueue server = awaitForever $ \e ->
   liftIO $ atomically $ writeTQueue (serverSendQueue server) e
@@ -53,9 +56,13 @@ runServer = do
   server <- newServer
   runTCPServer (serverSettings 11073 "*") $ \appData -> do
     player <- atomically $ registerPlayer server appData
-    putStrLn $ "Player #" <> show (playerId player) <>" connected"
+    putStrLn $ "Player #" <> show (playerId player) <> " connected"
 
     runConduitRes
       $ appSource appData
       .| parseEvents
       .| sinkRecvQueue server
+
+    -- TODO: Gracefully exit on connection errors and other issues.
+    atomically $ unregisterPlayer server player
+    putStrLn $ "Player #" <> show (playerId player) <> " finished"
