@@ -30,6 +30,14 @@ newServer =
   <*> newTQueueIO
   <*> newTQueueIO
 
+registerPlayer :: Server -> AppData -> STM Player
+registerPlayer server appData = do
+  clientMap <- readTVar (serverClients server)
+  let newPlayerId = 1 + maximum (Map.keys clientMap)
+      newPlayer = Player newPlayerId appData
+  writeTVar (serverClients server) (Map.insert newPlayerId newPlayer clientMap)
+  return newPlayer
+
 -- | Begin accepting connections from clients
 runServer :: IO ()
 runServer = do
