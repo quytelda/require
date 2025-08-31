@@ -3,6 +3,7 @@
 
 module Server where
 
+import           Conduit
 import           Control.Concurrent.STM
 import           Data.Conduit.Network
 import           Data.Map.Strict        (Map)
@@ -38,6 +39,14 @@ registerPlayer server appData = do
   writeTVar (serverClients server) (Map.insert newPlayerId newPlayer clientMap)
   return newPlayer
 
+sinkSendQueue :: MonadResource m => Server -> ConduitT Event o m ()
+sinkSendQueue server = awaitForever $ \e ->
+  liftIO $ atomically $ writeTQueue (serverSendQueue server) e
+
+sinkRecvQueue :: MonadResource m => Server -> ConduitT Event o m ()
+sinkRecvQueue server = awaitForever $ \e ->
+  liftIO $ atomically $ writeTQueue (serverRecvQueue server) e
+
 -- | Begin accepting connections from clients
 runServer :: IO ()
 runServer = do
@@ -45,4 +54,8 @@ runServer = do
   runTCPServer (serverSettings 11073 "*") $ \appData -> do
     player <- atomically $ registerPlayer server appData
     putStrLn $ "Player #" <> show (playerId player) <>" connected"
-    return ()
+
+    runConduitRes
+      $ appSource appData
+      .| parseEvents
+      .| sinkRecvQueue server
