@@ -31,13 +31,20 @@ newServer =
   <*> newTQueueIO
   <*> newTQueueIO
 
+newPlayerId :: Server -> STM PlayerId
+newPlayerId server = do
+  players <- readTVar (serverClients server)
+  return $
+    if null players
+    then 1
+    else 1 + maximum (Map.keys players)
+
 registerPlayer :: Server -> AppData -> STM Player
 registerPlayer server appData = do
-  clientMap <- readTVar (serverClients server)
-  let newPlayerId = 1 + if null clientMap then 0 else maximum (Map.keys clientMap)
-      newPlayer = Player newPlayerId appData
-  writeTVar (serverClients server) (Map.insert newPlayerId newPlayer clientMap)
-  return newPlayer
+  pid <- newPlayerId server
+  let player = Player pid appData
+  modifyTVar' (serverClients server) $ Map.insert pid player
+  return player
 
 unregisterPlayer :: Server -> Player -> STM ()
 unregisterPlayer server = modifyTVar' (serverClients server) . Map.delete . playerId
