@@ -42,3 +42,18 @@ defaultBankAssets = Assets
   { moneyAssets = 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
   , stockAssets = Map.fromList $ zip [Triangle ..] (repeat 25)
   }
+
+data Action
+  = DrawAction (Maybe Coord) -- ^ Draw a tile
+  | PlayAction Coord -- ^ Put a tile on the board
+  | DiscardAction Coord -- ^ Discard an unusable tile
+  | ReturnAction Coord -- ^ Return a pile to the pool
+  | MarkerAction (Maybe Coord) -- ^ Place or remove a company marker tile
+  | MoneyAction Money -- ^ Take or return money
+  | StockAction Company Int -- ^ Take or return stocks
+  deriving (Eq, Show)
+
+-- | An event represents something happening in the game that needs to
+-- be shared with all players.
+data Event = Event PlayerId Event
+  deriving (Eq, Show)
