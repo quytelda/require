@@ -19,7 +19,7 @@ data Player = Player
   }
 
 data Server = Server
-  { serverClients   :: TVar (Map PlayerId Player)
+  { serverPlayers   :: TVar (Map PlayerId Player)
   , serverSendQueue :: TQueue Event
   , serverRecvQueue :: TQueue Event
   }
@@ -33,7 +33,7 @@ newServer =
 
 newPlayerId :: Server -> STM PlayerId
 newPlayerId server = do
-  players <- readTVar (serverClients server)
+  players <- readTVar (serverPlayers server)
   return $
     if null players
     then 1
@@ -43,11 +43,11 @@ registerPlayer :: Server -> AppData -> STM Player
 registerPlayer server appData = do
   pid <- newPlayerId server
   let player = Player pid appData
-  modifyTVar' (serverClients server) $ Map.insert pid player
+  modifyTVar' (serverPlayers server) $ Map.insert pid player
   return player
 
 unregisterPlayer :: Server -> Player -> STM ()
-unregisterPlayer server = modifyTVar' (serverClients server) . Map.delete . playerId
+unregisterPlayer server = modifyTVar' (serverPlayers server) . Map.delete . playerId
 
 sinkSendQueue :: MonadResource m => Server -> ConduitT Event o m ()
 sinkSendQueue server = awaitForever $ \e ->
