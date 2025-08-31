@@ -33,7 +33,7 @@ newServer =
 registerPlayer :: Server -> AppData -> STM Player
 registerPlayer server appData = do
   clientMap <- readTVar (serverClients server)
-  let newPlayerId = 1 + maximum (Map.keys clientMap)
+  let newPlayerId = 1 + if null clientMap then 0 else maximum (Map.keys clientMap)
       newPlayer = Player newPlayerId appData
   writeTVar (serverClients server) (Map.insert newPlayerId newPlayer clientMap)
   return newPlayer
@@ -43,4 +43,6 @@ runServer :: IO ()
 runServer = do
   server <- newServer
   runTCPServer (serverSettings 11073 "*") $ \appData -> do
+    player <- atomically $ registerPlayer server appData
+    putStrLn $ "Player #" <> show (playerId player) <>" connected"
     return ()
