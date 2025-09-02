@@ -48,7 +48,6 @@ renderEvent e =
                                     ]
     MoneyEvent pid amount        -> renderEvent' pid "MONEY"
                                     [B.intDec amount]
-    _                            -> undefined
   where
     renderCompany = B.string8 . show
     renderEvent' pid evt args =
@@ -99,7 +98,6 @@ event = do
   case action of
     "HELLO"   -> HelloEvent <$> decimal
     "JOIN"    -> pure $ JoinEvent pid
-    "NAME"    -> NameEvent pid <$> quotedString
     "DRAW"    -> DrawEvent pid <$> optional coord
     "PLAY"    -> PlayEvent pid <$> coord
     "DISCARD" -> DiscardEvent pid <$> coord

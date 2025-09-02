@@ -51,7 +51,6 @@ defaultBankAssets = Assets
 data Event
   = HelloEvent   PlayerId -- ^ Inform a new client of their player ID
   | JoinEvent    PlayerId -- ^ A new player joins the game
-  | NameEvent    PlayerId ByteString    -- ^ Change a player's display name
   | DrawEvent    PlayerId (Maybe Coord) -- ^ Draw a tile
   | PlayEvent    PlayerId Coord -- ^ Put a tile on the board
   | DiscardEvent PlayerId Coord -- ^ Discard an unusable tile
