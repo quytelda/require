@@ -58,6 +58,8 @@ event = do
   skipSpace
 
   case action of
+    "HELLO"   -> HelloEvent <$> decimal
+    "JOIN"    -> pure $ JoinEvent pid
     "NAME"    -> NameEvent pid <$> quotedString
     "DRAW"    -> DrawEvent pid <$> optional coord
     "PLAY"    -> PlayEvent pid <$> coord
