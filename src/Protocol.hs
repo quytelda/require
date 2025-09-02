@@ -8,7 +8,10 @@ import           Control.Monad
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString                  as BS
+import           Data.ByteString.Builder          as B
 import           Data.Conduit.Attoparsec
+import           Data.List                        (intersperse)
+import           Data.Maybe                       (maybeToList)
 
 import           Types
 
@@ -17,6 +20,40 @@ import           Types
 
 parseEvents :: MonadThrow m => ConduitT ByteString Event m ()
 parseEvents = conduitParser (event <* (endOfLine <|> endOfInput)) .| mapC snd
+
+--------------------------------------------------------------------------------
+-- Rendering
+
+renderEvent :: Event -> B.Builder
+renderEvent e =
+  case e of
+    HelloEvent   pid             -> renderEvent' 0 "HELLO"
+                                    [B.intDec pid]
+    JoinEvent    pid             -> renderEvent' pid "JOIN"
+                                    []
+    DrawEvent    pid mc          -> renderEvent' pid "DRAW"
+                                    (maybeToList $ renderCoord <$> mc)
+    PlayEvent    pid c           -> renderEvent' pid "PLAY"
+                                    [renderCoord c]
+    DiscardEvent pid c           -> renderEvent' pid "DISCARD"
+                                    [renderCoord c]
+    ReturnEvent  pid c           -> renderEvent' pid "RETURN"
+                                    [renderCoord c]
+    MarkerEvent  pid mc          -> renderEvent' pid "MARKER"
+                                    (maybeToList $ renderCoord <$> mc)
+    StockEvent   pid comp amount -> renderEvent' pid "STOCK"
+                                    [ B.string8 (show comp)
+                                    , B.intDec amount
+                                    ]
+    MoneyEvent pid amount        -> renderEvent' pid "MONEY"
+                                    [B.intDec amount]
+    _                            -> undefined
+  where
+    renderEvent' pid evt args =
+      mconcat $ intersperse (B.char8 ' ') $ B.intDec pid : evt : args
+
+renderCoord :: Coord -> B.Builder
+renderCoord (col, row) = B.intDec col <> B.char8 '-' <> B.char8 row
 
 --------------------------------------------------------------------------------
 -- Parsers
