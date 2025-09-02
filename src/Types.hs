@@ -37,6 +37,9 @@ data Assets = Assets
   , stockAssets :: Map Company Int
   } deriving (Eq, Show)
 
+defaultAssets :: Assets
+defaultAssets = Assets 0 $ Map.fromList $ zip [Triangle ..] (repeat 0)
+
 -- | The contents of the bank before distributing starting assets,
 -- i.e. the collection of all assets in the game.
 defaultBankAssets :: Assets
