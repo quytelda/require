@@ -21,6 +21,9 @@ import           Types
 parseEvents :: MonadThrow m => ConduitT ByteString Event m ()
 parseEvents = conduitParser (event <* (endOfLine <|> endOfInput)) .| mapC snd
 
+renderEvents :: PrimMonad m => ConduitT Event ByteString m ()
+renderEvents = mapC renderEvent .| builderToByteString .| intersperseC "\n"
+
 --------------------------------------------------------------------------------
 -- Rendering
 
