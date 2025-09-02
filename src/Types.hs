@@ -56,7 +56,7 @@ data Event
   | PlayEvent    PlayerId Coord -- ^ Put a tile on the board
   | DiscardEvent PlayerId Coord -- ^ Discard an unusable tile
   | ReturnEvent  PlayerId Coord -- ^ Return a pile to the pool
-  | MarkerEvent  PlayerId (Maybe Coord) -- ^ Place or remove a company marker tile
+  | MarkerEvent  PlayerId Company (Maybe Coord) -- ^ Place or remove a company marker tile
   | MoneyEvent   PlayerId Money -- ^ Take or return money
   | StockEvent   PlayerId Company Int -- ^ Take or return stocks
   deriving (Eq, Show)

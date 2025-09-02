@@ -39,16 +39,18 @@ renderEvent e =
                                     [renderCoord c]
     ReturnEvent  pid c           -> renderEvent' pid "RETURN"
                                     [renderCoord c]
-    MarkerEvent  pid mc          -> renderEvent' pid "MARKER"
-                                    (maybeToList $ renderCoord <$> mc)
+    MarkerEvent  pid comp mc     -> renderEvent' pid "MARKER"
+                                    $ [renderCompany comp]
+                                    <> (maybeToList $ renderCoord <$> mc)
     StockEvent   pid comp amount -> renderEvent' pid "STOCK"
-                                    [ B.string8 (show comp)
+                                    [ renderCompany comp
                                     , B.intDec amount
                                     ]
     MoneyEvent pid amount        -> renderEvent' pid "MONEY"
                                     [B.intDec amount]
     _                            -> undefined
   where
+    renderCompany = B.string8 . show
     renderEvent' pid evt args =
       mconcat $ intersperse (B.char8 ' ') $ B.intDec pid : evt : args
 
@@ -102,7 +104,7 @@ event = do
     "PLAY"    -> PlayEvent pid <$> coord
     "DISCARD" -> DiscardEvent pid <$> coord
     "RETURN"  -> ReturnEvent pid <$> coord
-    "MARKER"  -> MarkerEvent pid <$> optional coord
+    "MARKER"  -> MarkerEvent pid <$> company <*> optional (space *> coord)
     "MONEY"   -> MoneyEvent pid <$> signed decimal
     "STOCK"   -> StockEvent pid <$> company <* space <*> signed decimal
     _         -> undefined -- TODO: Error handling
