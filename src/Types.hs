@@ -1,6 +1,9 @@
+{-# LANGUAGE RecordWildCards #-}
 module Types where
 
+import           Conduit
 import           Control.Exception
+import           Control.Monad
 import           Data.ByteString   (ByteString)
 import qualified Data.ByteString   as BS
 import           Data.Map.Strict   (Map)
@@ -32,29 +35,67 @@ data Company
   | Imperious
   deriving (Enum, Eq, Show, Ord)
 
--- | The collection of scorable assets held by a player (or the bank)
-data Assets = Assets
-  { moneyAssets :: Money
-  , stockAssets :: Map Company Int
-  } deriving (Eq, Show)
-
-defaultAssets :: Assets
-defaultAssets = Assets 0 $ Map.fromList $ zip [Triangle ..] (repeat 0)
-
--- | The contents of the bank before distributing starting assets,
--- i.e. the collection of all assets in the game.
-defaultBankAssets :: Assets
-defaultBankAssets = Assets
-  { moneyAssets = 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
-  , stockAssets = Map.fromList $ zip [Triangle ..] (repeat 25)
-  }
+type Stocks = Map Company Int
 
 -- | Game State
 data Game = Game
-  { gameTiles        :: Map Coord TileLoc
-  , gameBank         :: Assets
-  , gamePlayerAssets :: Map PlayerId Assets
+  { gameTiles  :: Map Coord TileLoc
+  , gameMoney  :: Map PlayerId Money
+  , gameStocks :: Map PlayerId Stocks
   } deriving (Eq, Show)
+
+defaultGame :: Game
+defaultGame = Game
+  { gameTiles = Map.empty
+  , gameMoney = Map.singleton 0 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
+  , gameStocks = Map.singleton 0 defaultBankStocks
+  }
+  where
+    defaultBankStocks = Map.fromList $ zip [Triangle ..] (repeat 25)
+
+addPlayer :: PlayerId -> Game -> Game
+addPlayer pid game = game
+  { gameMoney = Map.insert pid 0 $ gameMoney game
+  , gameStocks = Map.insert pid Map.empty $ gameStocks game
+  }
+
+getMoney :: MonadThrow m => PlayerId -> Game -> m Money
+getMoney pid Game{..} =
+  maybe (throwM $ BadPlayerId pid) return $ Map.lookup pid gameMoney
+
+setMoney :: MonadThrow m => PlayerId -> Money -> Game -> m Game
+setMoney pid amount game
+  | pid `Map.member` gameMoney game =
+      return game { gameMoney = Map.insert pid amount (gameMoney game) }
+  | otherwise = throwM $ BadPlayerId pid
+
+getStocks :: MonadThrow m => PlayerId -> Company -> Game -> m Int
+getStocks pid com =
+  maybe (throwM $ BadPlayerId pid) (return . Map.findWithDefault 0 com)
+  . Map.lookup pid
+  . gameStocks
+
+setStocks :: MonadThrow m => PlayerId -> Company -> Int -> Game -> m Game
+setStocks pid com qty game = do
+  stocks <- maybe (throwM $ BadPlayerId pid) return $ Map.lookup pid $ gameStocks game
+  let stocks' = Map.insert com qty stocks
+  return game
+    { gameStocks = Map.insert pid stocks' (gameStocks game)
+    }
+
+transferMoney :: MonadThrow m => PlayerId -> Money -> Game -> m Game
+transferMoney pid amount game = do
+  bankBal   <- getMoney 0 game
+  playerBal <- getMoney pid game
+
+  unless (bankBal > amount) $
+    throwM $ OutOfMoney 0
+
+  unless (playerBal > negate amount) $
+    throwM $ OutOfMoney pid
+
+  setMoney 0 (bankBal - amount) game
+    >>= setMoney pid (playerBal + amount)
 
 data Event
   = HelloEvent   PlayerId -- ^ Inform a new client of their player ID
