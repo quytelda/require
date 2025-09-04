@@ -5,6 +5,7 @@ module Server where
 
 import           Conduit
 import           Control.Concurrent.STM
+import           Control.Monad
 import           Data.Conduit.Network
 import           Data.Map.Strict        (Map)
 import qualified Data.Map.Strict        as Map
@@ -61,14 +62,6 @@ registerPlayer server appData = do
 unregisterPlayer :: Server -> Player -> STM ()
 unregisterPlayer server = modifyTVar' (serverPlayers server) . Map.delete . playerId
 
-sinkSendQueue :: MonadResource m => Server -> ConduitT Event o m ()
-sinkSendQueue server = awaitForever $ \e ->
-  liftIO $ atomically $ writeTQueue (serverSendQueue server) e
-
-sinkRecvQueue :: MonadResource m => Server -> ConduitT Event o m ()
-sinkRecvQueue server = awaitForever $ \e ->
-  liftIO $ atomically $ writeTQueue (serverRecvQueue server) e
-
 -- | Begin accepting connections from clients
 runServer :: IO ()
 runServer = do
@@ -82,10 +75,18 @@ runServer = do
       $ yield (HelloEvent playerId)
       .| playerSink player
 
+    -- Stream incoming events to the global incoming queue.
     runConduitRes
       $ playerSource player
-      .| sinkRecvQueue server
+      .| sinkTQueue (serverRecvQueue server)
 
     -- TODO: Gracefully exit on connection errors and other issues.
     atomically $ unregisterPlayer server player
     putStrLn $ "Player #" <> show playerId <> " finished"
+
+sinkTQueue :: MonadIO m => TQueue a -> ConduitT a o m ()
+sinkTQueue queue = awaitForever $ liftIO . atomically . writeTQueue queue
+
+sourceTQueue :: MonadIO m => TQueue a -> ConduitT i a m ()
+sourceTQueue queue =
+  forever $ (liftIO . atomically . readTQueue) queue >>= yield
