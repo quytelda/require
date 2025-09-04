@@ -59,6 +59,19 @@ addPlayer pid game = game
   , gameStocks = Map.insert pid Map.empty $ gameStocks game
   }
 
+getTileStatus :: Coord -> Game -> TileLoc
+getTileStatus tile = Map.findWithDefault Pool tile . gameTiles
+
+setTileStatus :: Coord -> TileLoc -> Game -> Game
+setTileStatus tile status game =
+  game { gameTiles = Map.insert tile status (gameTiles game) }
+
+playerHasTile :: Coord -> PlayerId -> Game -> Bool
+playerHasTile tile pid =
+  maybe False (== Hand pid)
+  . Map.lookup tile
+  . gameTiles
+
 getMoney :: MonadThrow m => PlayerId -> Game -> m Money
 getMoney pid Game{..} =
   maybe (throwM $ BadPlayerId pid) return $ Map.lookup pid gameMoney
