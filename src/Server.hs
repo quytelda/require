@@ -42,6 +42,15 @@ newServer =
   <$> newTVarIO Map.empty
   <*> newTQueueIO
 
+broadcastSink
+  :: (MonadIO m, PrimMonad m)
+  => Server
+  -> ConduitT Event Void m ()
+broadcastSink Server{..} =
+  void
+  $ liftIO (readTVarIO serverPlayers)
+  >>= sequenceSinks . fmap playerSink
+
 newPlayerId :: Server -> STM PlayerId
 newPlayerId server = do
   players <- readTVar (serverPlayers server)
