@@ -49,6 +49,13 @@ defaultBankAssets = Assets
   , stockAssets = Map.fromList $ zip [Triangle ..] (repeat 25)
   }
 
+-- | Game State
+data Game = Game
+  { gameTiles        :: Map Coord TileLoc
+  , gameBank         :: Assets
+  , gamePlayerAssets :: Map PlayerId Assets
+  } deriving (Eq, Show)
+
 data Event
   = HelloEvent   PlayerId -- ^ Inform a new client of their player ID
   | JoinEvent    PlayerId -- ^ A new player joins the game
