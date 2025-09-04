@@ -33,7 +33,6 @@ playerSink Player{..} = renderEvents .| appSink playerApp
 
 data Server = Server
   { serverPlayers   :: TVar (Map PlayerId Player)
-  , serverSendQueue :: TQueue Event
   , serverRecvQueue :: TQueue Event
   }
 
@@ -41,7 +40,6 @@ newServer :: IO Server
 newServer =
   Server
   <$> newTVarIO Map.empty
-  <*> newTQueueIO
   <*> newTQueueIO
 
 newPlayerId :: Server -> STM PlayerId
