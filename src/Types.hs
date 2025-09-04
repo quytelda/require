@@ -85,7 +85,7 @@ setStocks pid com qty game = do
 
 transferMoney :: MonadThrow m => PlayerId -> Money -> Game -> m Game
 transferMoney pid amount game = do
-  bankBal   <- getMoney 0 game
+  bankBal   <- getMoney 0   game
   playerBal <- getMoney pid game
 
   unless (bankBal > amount) $
@@ -96,6 +96,20 @@ transferMoney pid amount game = do
 
   setMoney 0 (bankBal - amount) game
     >>= setMoney pid (playerBal + amount)
+
+transferStock :: MonadThrow m => PlayerId -> Company -> Int -> Game -> m Game
+transferStock pid com amount game = do
+  bankQty   <- getStocks 0   com game
+  playerQty <- getStocks pid com game
+
+  unless (bankQty > amount) $
+    throwM $ OutOfStock 0 com
+
+  unless (playerQty > negate amount) $
+    throwM $ OutOfStock pid com
+
+  setStocks 0 com (bankQty - amount) game
+    >>= setStocks pid com (playerQty + amount)
 
 data Event
   = HelloEvent   PlayerId -- ^ Inform a new client of their player ID
