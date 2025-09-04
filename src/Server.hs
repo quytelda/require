@@ -18,6 +18,18 @@ data Player = Player
   , playerApp :: AppData
   }
 
+playerSource
+  :: (MonadIO m, MonadThrow m)
+  => Player
+  -> ConduitT i Event m ()
+playerSource Player{..} = appSource playerApp .| parseEvents
+
+playerSink
+  :: (MonadIO m, PrimMonad m)
+  => Player
+  -> ConduitT Event o m ()
+playerSink Player{..} = renderEvents .| appSink playerApp
+
 data Server = Server
   { serverPlayers   :: TVar (Map PlayerId Player)
   , serverSendQueue :: TQueue Event
@@ -68,12 +80,10 @@ runServer = do
     putStrLn $ "Player #" <> show playerId <> " connected"
     runConduitRes
       $ yield (HelloEvent playerId)
-      .| renderEvents
-      .| appSink playerApp
+      .| playerSink player
 
     runConduitRes
-      $ appSource appData
-      .| parseEvents
+      $ playerSource player
       .| sinkRecvQueue server
 
     -- TODO: Gracefully exit on connection errors and other issues.
