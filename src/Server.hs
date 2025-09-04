@@ -62,8 +62,14 @@ runServer :: IO ()
 runServer = do
   server <- newServer
   runTCPServer (serverSettings 11073 "*") $ \appData -> do
-    player <- atomically $ registerPlayer server appData
-    putStrLn $ "Player #" <> show (playerId player) <> " connected"
+
+    -- Registration
+    player@Player{..} <- atomically $ registerPlayer server appData
+    putStrLn $ "Player #" <> show playerId <> " connected"
+    runConduitRes
+      $ yield (HelloEvent playerId)
+      .| renderEvents
+      .| appSink playerApp
 
     runConduitRes
       $ appSource appData
@@ -72,4 +78,4 @@ runServer = do
 
     -- TODO: Gracefully exit on connection errors and other issues.
     atomically $ unregisterPlayer server player
-    putStrLn $ "Player #" <> show (playerId player) <> " finished"
+    putStrLn $ "Player #" <> show playerId <> " finished"
