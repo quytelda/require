@@ -39,14 +39,16 @@ type Stocks = Map Company Int
 
 -- | Game State
 data Game = Game
-  { gameTiles  :: Map Coord TileLoc
-  , gameMoney  :: Map PlayerId Money
-  , gameStocks :: Map PlayerId Stocks
+  { gameTiles   :: Map Coord TileLoc
+  , gameMarkers :: Map Company Coord
+  , gameMoney   :: Map PlayerId Money
+  , gameStocks  :: Map PlayerId Stocks
   } deriving (Eq, Show)
 
 defaultGame :: Game
 defaultGame = Game
   { gameTiles = Map.empty
+  , gameMarkers = Map.empty
   , gameMoney = Map.singleton 0 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
   , gameStocks = Map.singleton 0 defaultBankStocks
   }
@@ -58,6 +60,13 @@ addPlayer pid game = game
   { gameMoney = Map.insert pid 0 $ gameMoney game
   , gameStocks = Map.insert pid Map.empty $ gameStocks game
   }
+
+getMarker :: Company -> Game -> Maybe Coord
+getMarker com = Map.lookup com . gameMarkers
+
+setMarker :: Company -> Maybe Coord -> Game -> Game
+setMarker com mtile game = game
+  { gameMarkers = Map.update (const mtile) com (gameMarkers game) }
 
 getTileStatus :: Coord -> Game -> TileLoc
 getTileStatus tile = Map.findWithDefault Pool tile . gameTiles
