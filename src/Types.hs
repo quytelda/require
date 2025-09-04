@@ -1,9 +1,10 @@
 module Types where
 
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import           Control.Exception
+import           Data.ByteString   (ByteString)
+import qualified Data.ByteString   as BS
+import           Data.Map.Strict   (Map)
+import qualified Data.Map.Strict   as Map
 
 type Money = Int
 type PlayerId = Int
@@ -59,3 +60,15 @@ data Event
   | MoneyEvent   PlayerId Money -- ^ Take or return money
   | StockEvent   PlayerId Company Int -- ^ Take or return stocks
   deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
+-- Errors
+
+data GameError
+  = BadPlayerId PlayerId -- ^ Player ID does not exist
+  | OutOfMoney  PlayerId
+  | OutOfStock  PlayerId Company
+  | MissingTile PlayerId Coord -- ^ This player doesn't have this tile
+  deriving (Eq, Show)
+
+instance Exception GameError
