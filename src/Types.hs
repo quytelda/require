@@ -8,6 +8,7 @@ import           Data.ByteString   (ByteString)
 import qualified Data.ByteString   as BS
 import           Data.Map.Strict   (Map)
 import qualified Data.Map.Strict   as Map
+import           System.Random
 
 type Money = Int
 type PlayerId = Int
@@ -43,23 +44,34 @@ data Game = Game
   , gameMarkers :: Map Company Coord
   , gameMoney   :: Map PlayerId Money
   , gameStocks  :: Map PlayerId Stocks
+  , gameRNG     :: StdGen
   } deriving (Eq, Show)
 
 defaultGame :: Game
 defaultGame = Game
-  { gameTiles = Map.empty
+  { gameTiles = Map.fromList $ zip allTiles (repeat Pool)
   , gameMarkers = Map.empty
   , gameMoney = Map.singleton 0 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
   , gameStocks = Map.singleton 0 defaultBankStocks
+  , gameRNG = mkStdGen 0
   }
   where
     defaultBankStocks = Map.fromList $ zip [Triangle ..] (repeat 25)
+    allTiles = [(col, row) | col <- [1..12], row <- ['A'..'I']]
 
 addPlayer :: PlayerId -> Game -> Game
 addPlayer pid game = game
   { gameMoney = Map.insert pid 0 $ gameMoney game
   , gameStocks = Map.insert pid Map.empty $ gameStocks game
   }
+
+grabFromPool :: Game -> Maybe (Coord, Game)
+grabFromPool game
+  | null pool = Nothing
+  | otherwise = Just (pool !! n, game { gameRNG = g })
+  where
+    pool = Map.keys $ Map.filter (== Pool) (gameTiles game)
+    (n, g) = uniformR (0, length pool - 1) (gameRNG game)
 
 getMarker :: Company -> Game -> Maybe Coord
 getMarker com = Map.lookup com . gameMarkers
@@ -152,6 +164,7 @@ data GameError
   = BadPlayerId PlayerId -- ^ Player ID does not exist
   | OutOfMoney  PlayerId
   | OutOfStock  PlayerId Company
+  | OutOfTiles
   | MissingTile PlayerId Coord -- ^ This player doesn't have this tile
   deriving (Eq, Show)
 
