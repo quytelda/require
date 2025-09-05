@@ -59,6 +59,11 @@ defaultGame = Game
     defaultBankStocks = Map.fromList $ zip [Triangle ..] (repeat 25)
     allTiles = [(col, row) | col <- [1..12], row <- ['A'..'I']]
 
+newGame :: MonadIO m => m Game
+newGame = do
+  gen <- getStdGen
+  return defaultGame { gameRNG = gen }
+
 addPlayer :: PlayerId -> Game -> Game
 addPlayer pid game = game
   { gameMoney = Map.insert pid 0 $ gameMoney game
