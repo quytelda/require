@@ -4,10 +4,11 @@ module Types where
 import           Conduit
 import           Control.Exception
 import           Control.Monad
-import           Data.ByteString   (ByteString)
-import qualified Data.ByteString   as BS
-import           Data.Map.Strict   (Map)
-import qualified Data.Map.Strict   as Map
+import           Control.Monad.State
+import           Data.ByteString     (ByteString)
+import qualified Data.ByteString     as BS
+import           Data.Map.Strict     (Map)
+import qualified Data.Map.Strict     as Map
 import           System.Random
 
 type Money = Int
@@ -38,6 +39,8 @@ data Company
 
 type Stocks = Map Company Int
 
+type GameMonad = StateT Game
+
 -- | Game State
 data Game = Game
   { gameTiles   :: Map Coord TileLoc
@@ -64,68 +67,84 @@ newGame = do
   gen <- getStdGen
   return defaultGame { gameRNG = gen }
 
-addPlayer :: PlayerId -> Game -> Game
-addPlayer pid game = game
+addPlayer :: Monad m => PlayerId -> GameMonad m ()
+addPlayer pid = modify' $ \game -> game
   { gameMoney = Map.insert pid 0 $ gameMoney game
   , gameStocks = Map.insert pid Map.empty $ gameStocks game
   }
 
-grabFromPool :: Game -> Maybe (Coord, Game)
-grabFromPool game
-  | null pool = Nothing
-  | otherwise = Just (pool !! n, game { gameRNG = g })
-  where
-    pool = Map.keys $ Map.filter (== Pool) (gameTiles game)
-    (n, g) = uniformR (0, length pool - 1) (gameRNG game)
+grabFromPool :: MonadThrow m => GameMonad m Coord
+grabFromPool = do
+  pool <- gets $ Map.keys . Map.filter (== Pool) . gameTiles
+  (n, g) <- uniformR (0, length pool - 1) <$> gets gameRNG
+  if null pool
+    then throwM OutOfTiles
+    else modify' (\game -> game { gameRNG = g })
+         *> pure (pool !! n)
 
-getMarker :: Company -> Game -> Maybe Coord
-getMarker com = Map.lookup com . gameMarkers
+getMarker :: Monad m => Company -> GameMonad m (Maybe Coord)
+getMarker com = gets $ Map.lookup com . gameMarkers
 
-setMarker :: Company -> Maybe Coord -> Game -> Game
-setMarker com mtile game = game
+setMarker :: Monad m => Company -> Maybe Coord -> GameMonad m ()
+setMarker com mtile = modify' $ \game -> game
   { gameMarkers = Map.update (const mtile) com (gameMarkers game) }
 
-getTileStatus :: Coord -> Game -> TileLoc
-getTileStatus tile = Map.findWithDefault Pool tile . gameTiles
+getTileStatus :: Monad m => Coord -> GameMonad m TileLoc
+getTileStatus tile = gets $ Map.findWithDefault Pool tile . gameTiles
 
-setTileStatus :: Coord -> TileLoc -> Game -> Game
-setTileStatus tile status game =
+setTileStatus :: Monad m => TileLoc -> Coord -> GameMonad m ()
+setTileStatus status tile = modify' $ \game ->
   game { gameTiles = Map.insert tile status (gameTiles game) }
 
-playerHasTile :: Coord -> PlayerId -> Game -> Bool
-playerHasTile tile pid =
+playerHasTile :: Monad m => Coord -> PlayerId -> GameMonad m Bool
+playerHasTile tile pid = gets $
   maybe False (== Hand pid)
   . Map.lookup tile
   . gameTiles
 
-getMoney :: MonadThrow m => PlayerId -> Game -> m Money
-getMoney pid Game{..} =
-  maybe (throwM $ BadPlayerId pid) return $ Map.lookup pid gameMoney
+checkHasTile :: MonadThrow m => PlayerId -> Coord -> GameMonad m ()
+checkHasTile pid tile = do
+  hasTile <- gets
+    $ maybe False (== Hand pid)
+    . Map.lookup tile
+    . gameTiles
 
-setMoney :: MonadThrow m => PlayerId -> Money -> Game -> m Game
-setMoney pid amount game
-  | pid `Map.member` gameMoney game =
-      return game { gameMoney = Map.insert pid amount (gameMoney game) }
-  | otherwise = throwM $ BadPlayerId pid
+  unless hasTile $
+    throwM $ MissingTile pid tile
 
-getStocks :: MonadThrow m => PlayerId -> Company -> Game -> m Int
-getStocks pid com =
-  maybe (throwM $ BadPlayerId pid) (return . Map.findWithDefault 0 com)
-  . Map.lookup pid
-  . gameStocks
+getMoney :: MonadThrow m => PlayerId -> GameMonad m Money
+getMoney pid =
+  gets (Map.lookup pid . gameMoney)
+  >>= maybe (throwM $ BadPlayerId pid) return
 
-setStocks :: MonadThrow m => PlayerId -> Company -> Int -> Game -> m Game
-setStocks pid com qty game = do
-  stocks <- maybe (throwM $ BadPlayerId pid) return $ Map.lookup pid $ gameStocks game
+setMoney :: MonadThrow m => PlayerId -> Money -> GameMonad m ()
+setMoney pid amount = do
+  playerExists <- gets $ Map.member pid . gameMoney
+  unless playerExists $
+    throwM $ BadPlayerId pid
+
+  modify' $ \game ->
+    game { gameMoney = Map.insert pid amount (gameMoney game) }
+
+getStocks :: MonadThrow m => PlayerId -> Company -> GameMonad m Int
+getStocks pid com = do
+  mstocks <- gets $ Map.lookup pid . gameStocks
+  case mstocks of
+    Nothing -> throwM $ BadPlayerId pid
+    Just stocks -> return $ Map.findWithDefault 0 com stocks
+
+setStocks :: MonadThrow m => PlayerId -> Company -> Int -> GameMonad m ()
+setStocks pid com qty = do
+  stocks <- gets (Map.lookup pid . gameStocks)
+            >>= maybe (throw $ BadPlayerId pid) pure
   let stocks' = Map.insert com qty stocks
-  return game
-    { gameStocks = Map.insert pid stocks' (gameStocks game)
-    }
+  modify' $ \game ->
+    game { gameStocks = Map.insert pid stocks' (gameStocks game) }
 
-transferMoney :: MonadThrow m => PlayerId -> Money -> Game -> m Game
-transferMoney pid amount game = do
-  bankBal   <- getMoney 0   game
-  playerBal <- getMoney pid game
+transferMoney :: MonadThrow m => PlayerId -> Money -> GameMonad m ()
+transferMoney pid amount = do
+  bankBal   <- getMoney 0
+  playerBal <- getMoney pid
 
   unless (bankBal > amount) $
     throwM $ OutOfMoney 0
@@ -133,13 +152,13 @@ transferMoney pid amount game = do
   unless (playerBal > negate amount) $
     throwM $ OutOfMoney pid
 
-  setMoney 0 (bankBal - amount) game
-    >>= setMoney pid (playerBal + amount)
+  setMoney 0 (bankBal - amount)
+  setMoney pid (playerBal + amount)
 
-transferStock :: MonadThrow m => PlayerId -> Company -> Int -> Game -> m Game
-transferStock pid com amount game = do
-  bankQty   <- getStocks 0   com game
-  playerQty <- getStocks pid com game
+transferStock :: MonadThrow m => PlayerId -> Company -> Int -> GameMonad m ()
+transferStock pid com amount = do
+  bankQty   <- getStocks 0   com
+  playerQty <- getStocks pid com
 
   unless (bankQty > amount) $
     throwM $ OutOfStock 0 com
@@ -147,8 +166,8 @@ transferStock pid com amount game = do
   unless (playerQty > negate amount) $
     throwM $ OutOfStock pid com
 
-  setStocks 0 com (bankQty - amount) game
-    >>= setStocks pid com (playerQty + amount)
+  setStocks 0   com (bankQty - amount)
+  setStocks pid com (playerQty + amount)
 
 data Event
   = HelloEvent   PlayerId -- ^ Inform a new client of their player ID

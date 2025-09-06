@@ -13,21 +13,19 @@ import qualified Data.Map.Strict        as Map
 import           Protocol
 import           Types
 
-handleEvent :: MonadThrow m => Game -> Event -> m Game
-handleEvent game (DrawEvent pid _)           = case grabFromPool game of
-                                                 Just (tile, game') ->
-                                                   pure $ setTileStatus tile (Hand pid) game'
-                                                 Nothing -> throwM OutOfTiles
-handleEvent game (PlayEvent pid tile)        = if playerHasTile tile pid game
-                                               then pure $ setTileStatus tile Play game
-                                               else throwM $ MissingTile pid tile
-handleEvent game (DiscardEvent pid tile)     = if playerHasTile tile pid game
-                                               then pure $ setTileStatus tile Discard game
-                                               else throwM $ MissingTile pid tile
-handleEvent game (ReturnEvent pid tile)      = if playerHasTile tile pid game
-                                               then pure $ setTileStatus tile Pool game
-                                               else throwM $ MissingTile pid tile
-handleEvent game (MarkerEvent _ com mtile)   = pure $ setMarker com mtile game
-handleEvent game (MoneyEvent pid amount)     = transferMoney pid amount game
-handleEvent game (StockEvent pid com amount) = transferStock pid com amount game
-handleEvent game _                           = pure game
+handleEvent :: MonadThrow m => Event -> GameMonad m ()
+handleEvent (DrawEvent pid _)           = grabFromPool
+                                          >>= setTileStatus (Hand pid)
+handleEvent (PlayEvent pid tile)        = checkHasTile pid tile
+                                          *> setTileStatus Play tile
+handleEvent (DiscardEvent pid tile)     = checkHasTile pid tile
+                                          *> setTileStatus Discard tile
+handleEvent (ReturnEvent pid tile)      = checkHasTile pid tile
+                                          *> setTileStatus Pool tile
+handleEvent (MarkerEvent _ com mtile)   = setMarker com mtile
+handleEvent (MoneyEvent pid amount)     = transferMoney pid amount
+handleEvent (StockEvent pid com amount) = transferStock pid com amount
+handleEvent _                           = pure ()
+
+handleEvents :: MonadThrow m => ConduitT Event o (GameMonad m) ()
+handleEvents = awaitForever $ lift . handleEvent
