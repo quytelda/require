@@ -77,6 +77,7 @@ defaultGame = Game
     defaultBankStocks = Map.fromList $ zip [Triangle ..] (repeat 25)
     allTiles = [(col, row) | col <- [1..12], row <- ['A'..'I']]
 
+-- | Create a default new game with a random RNG seed.
 newGame :: MonadIO m => m Game
 newGame = do
   gen <- getStdGen
@@ -97,6 +98,7 @@ data Event
 --------------------------------------------------------------------------------
 -- Errors
 
+-- | Problematic situations that might arise during the game.
 data GameError
   = BadPlayerId PlayerId -- ^ Player ID does not exist
   | OutOfMoney  PlayerId
