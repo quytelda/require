@@ -7,6 +7,7 @@ import           Control.Monad
 import           Control.Monad.State
 import           Data.ByteString     (ByteString)
 import qualified Data.ByteString     as BS
+import           Data.Conduit.Lift
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           System.Random
@@ -40,6 +41,20 @@ data Company
 type Stocks = Map Company Int
 
 type GameMonad = StateT Game
+
+execGameMonad
+  :: Monad m
+  => Game
+  -> ConduitT i o (GameMonad m) r
+  -> ConduitT i o m Game
+execGameMonad = execStateLC
+
+evalGameMonad
+  :: Monad m
+  => Game
+  -> ConduitT i o (GameMonad m) r
+  -> ConduitT i o m r
+evalGameMonad = evalStateLC
 
 -- | Game State
 data Game = Game
