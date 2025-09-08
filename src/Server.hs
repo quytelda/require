@@ -86,15 +86,14 @@ runServer :: IO ()
 runServer = do
   server <- newServer
   concurrently_
-    (runConduit $ sourceTQueue server.recvQueue .| broadcast server)
+    (runConduit $ sourceTQueue server.recvQueue .| gameConduit .| broadcast server)
     (runTCPServer (serverSettings 11073 "127.0.0.1") (serveClient server))
 
 gameConduit :: (MonadIO m, MonadCatch m) => ConduitT Event Event m ()
 gameConduit = evalStateLC defaultGame $ awaitForever $ \event -> do
-  success <- lift $ catch
-    (handleEvent event *> pure True)
-    (\err -> liftIO (print (err :: GameError)) *> pure False)
-
-  when success $ do
-    yield event
-    lift get >>= liftIO . print
+  result <- lift $ try $ handleEvent event
+  case result of
+    Right event' -> yield event' >> lift get >>= liftIO . print
+    Left  err    -> handleError err
+  where
+    handleError err = liftIO $ print (err :: GameError)

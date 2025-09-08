@@ -13,22 +13,31 @@ import           System.Random
 
 import           Types
 
-handleEvent :: MonadThrow m => Event -> GameMonad m ()
-handleEvent (JoinEvent pid)             = do exists <- playerExists pid
-                                             when exists $
-                                               throwM $ BadPlayerId pid
-                                             addPlayer pid
-handleEvent (DrawEvent pid _)           = grabFromPool
-                                          >>= setTileStatus (Hand pid)
-handleEvent (PlayEvent pid tile)        = checkHasTile pid tile
-                                          *> setTileStatus Play tile
-handleEvent (DiscardEvent pid tile)     = checkHasTile pid tile
-                                          *> setTileStatus Discard tile
-handleEvent (ReturnEvent pid tile)      = checkHasTile pid tile
-                                          *> setTileStatus Pool tile
-handleEvent (MarkerEvent _ com mtile)   = setMarker com mtile
-handleEvent (MoneyEvent pid amount)     = transferMoney pid amount
-handleEvent (StockEvent pid com amount) = transferStock pid com amount
+handleEvent :: MonadThrow m => Event -> GameMonad m Event
+handleEvent event@(JoinEvent pid)             = do exists <- playerExists pid
+                                                   when exists $
+                                                     throwM $ BadPlayerId pid
+                                                   addPlayer pid
+                                                   return event
+handleEvent (DrawEvent pid _)                 = do tile <- grabFromPool
+                                                   setTileStatus (Hand pid) tile
+                                                   return $
+                                                     DrawEvent pid (Just tile)
+handleEvent event@(PlayEvent pid tile)        = checkHasTile pid tile
+                                                *> setTileStatus Play tile
+                                                *> pure event
+handleEvent event@(DiscardEvent pid tile)     = checkHasTile pid tile
+                                                *> setTileStatus Discard tile
+                                                *> pure event
+handleEvent event@(ReturnEvent pid tile)      = checkHasTile pid tile
+                                                *> setTileStatus Pool tile
+                                                *> pure event
+handleEvent event@(MarkerEvent _ com mtile)   = setMarker com mtile
+                                                *> pure event
+handleEvent event@(MoneyEvent pid amount)     = transferMoney pid amount
+                                                *> pure event
+handleEvent event@(StockEvent pid com amount) = transferStock pid com amount
+                                                *> pure event
 
 --------------------------------------------------------------------------------
 -- Game Transactions
