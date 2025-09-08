@@ -24,7 +24,6 @@ handleEvent (ReturnEvent pid tile)      = checkHasTile pid tile
 handleEvent (MarkerEvent _ com mtile)   = setMarker com mtile
 handleEvent (MoneyEvent pid amount)     = transferMoney pid amount
 handleEvent (StockEvent pid com amount) = transferStock pid com amount
-handleEvent _                           = pure ()
 
 handleEvents :: MonadThrow m => ConduitT Event o (GameMonad m) ()
 handleEvents = awaitForever $ lift . handleEvent
