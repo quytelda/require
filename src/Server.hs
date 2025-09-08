@@ -7,10 +7,13 @@ import           Conduit
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad
+import           Control.Monad.Catch
+import           Control.Monad.State
 import           Data.Conduit.Network
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 
+import           Game
 import           Protocol
 import           Types
 
@@ -85,3 +88,13 @@ runServer = do
   concurrently_
     (runConduit $ sourceTQueue server.recvQueue .| broadcast server)
     (runTCPServer (serverSettings 11073 "127.0.0.1") (serveClient server))
+
+gameConduit :: (MonadIO m, MonadCatch m) => ConduitT Event Event m ()
+gameConduit = evalStateLC defaultGame $ awaitForever $ \event -> do
+  success <- lift $ catch
+    (handleEvent event *> pure True)
+    (\err -> liftIO (print (err :: GameError)) *> pure False)
+
+  when success $ do
+    yield event
+    lift get >>= liftIO . print
