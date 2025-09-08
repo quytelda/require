@@ -29,10 +29,6 @@ renderEvents = awaitForever $ sourceLazy . B.toLazyByteString . renderEvent
 renderEvent :: Event -> B.Builder
 renderEvent e =
   case e of
-    HelloEvent   pid             -> renderEvent' 0 "HELLO"
-                                    [B.intDec pid]
-    JoinEvent    pid             -> renderEvent' pid "JOIN"
-                                    []
     DrawEvent    pid mc          -> renderEvent' pid "DRAW"
                                     (maybeToList $ renderCoord <$> mc)
     PlayEvent    pid c           -> renderEvent' pid "PLAY"
@@ -87,8 +83,7 @@ parseEvent = do
   pid <- parsePlayerId
   void space
 
-  parseJoin pid
-    <|> parseDraw pid
+  parseDraw pid
     <|> parsePlay pid
     <|> parseDiscard pid
     <|> parseReturn pid
@@ -96,8 +91,6 @@ parseEvent = do
     <|> parseMoney pid
     <|> parseStock pid
   where
-    parseJoin pid = string "JOIN"
-      *> pure (JoinEvent pid)
     parseDraw pid = string "DRAW"
       *> (DrawEvent pid <$> optional (space *> parseTile))
     parsePlay pid = PlayEvent pid
