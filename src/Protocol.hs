@@ -23,6 +23,11 @@ parseEvents = peekForever $ lineAsciiC ((sinkParser parseEvent) >>= yield)
 renderEvents :: Monad m => ConduitT Event ByteString m ()
 renderEvents = awaitForever $ sourceLazy . B.toLazyByteString . renderEvent
 
+handshake :: MonadThrow m => PlayerId -> ConduitT ByteString ByteString m ()
+handshake pid = do
+  lineAsciiC $ sinkParser $ void $ string "HELLO"
+  sourceLazy $ B.toLazyByteString $ "HELLO " <> B.intDec pid <> "\n"
+
 --------------------------------------------------------------------------------
 -- Rendering
 

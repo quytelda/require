@@ -51,15 +51,22 @@ broadcast server = awaitForever $ \x -> yield x .| sendAll
 
 serveClient :: Server -> AppData -> IO ()
 serveClient server app = do
-  -- A new client has just connected, so we register the connection in
-  -- the client table.
+  -- A new client has just connected.
   uid <- newUID server
   sendQueue <- newTQueueIO
-  atomically $ modifyTVar' server.clients $ Map.insert uid sendQueue
   putStrLn
     $ "New connection from "
     <> show (appSockAddr app)
     <> ", UID: " <> show uid
+
+  -- Wait for the client to initiate a handshake.
+  runConduit
+    $ appSource app
+    .| handshake uid
+    .| appSink app
+
+  -- Register the connection in the client table.
+  atomically $ modifyTVar' server.clients $ Map.insert uid sendQueue
 
   -- Stream incoming events to the global incoming queue while
   -- streaming outgoing events from the client's outgoing queue.
