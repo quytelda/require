@@ -8,7 +8,7 @@ import           Control.Monad
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString                  as BS
-import           Data.ByteString.Builder          as B
+import qualified Data.ByteString.Builder          as B
 import           Data.Conduit.Attoparsec
 import           Data.List                        (intersperse)
 import           Data.Maybe                       (maybeToList)
@@ -19,7 +19,7 @@ import           Types
 -- Conduits
 
 parseEvents :: MonadThrow m => ConduitT ByteString Event m ()
-parseEvents = conduitParser (event <* (endOfLine <|> endOfInput)) .| mapC snd
+parseEvents = peekForever $ lineAsciiC ((sinkParser parseEvent) >>= yield)
 
 renderEvents :: PrimMonad m => ConduitT Event ByteString m ()
 renderEvents = mapC renderEvent .| builderToByteString .| intersperseC "\n"
@@ -60,52 +60,58 @@ renderCoord :: Coord -> B.Builder
 renderCoord (col, row) = B.intDec col <> B.char8 '-' <> B.char8 row
 
 --------------------------------------------------------------------------------
--- Parsers
+-- Parsing
 
-lexeme :: Parser ByteString
-lexeme = takeTill isSpace
+parseTile :: Parser Coord
+parseTile =
+  (,)
+  <$> decimal
+  <*  char8 '-'
+  <*> letter_ascii
 
-boundary :: Parser ()
-boundary = space *> skipSpace
+parsePlayerId :: Parser PlayerId
+parsePlayerId = decimal <?> "PlayerId"
 
-quotedString :: Parser ByteString
-quotedString = do
-  void $ char '"'
-  str <- takeTill (== '"')
-  void $ char '"'
-  return str
+parseCompany :: Parser Company
+parseCompany =
+  string "Triangle" *> pure Triangle
+  <|> string "Love" *> pure Love
+  <|> string "Albanian" *> pure Albanian
+  <|> string "Fiesta" *> pure Fiesta
+  <|> string "Wonder" *> pure Wonder
+  <|> string "Centennial" *> pure Centennial
+  <|> string "Imperious" *> pure Imperious
 
-company :: Parser Company
-company = string "Triangle" *> pure Triangle
-          <|> string "Love" *> pure Love
-          <|> string "Albanian" *> pure Albanian
-          <|> string "Fiesta" *> pure Fiesta
-          <|> string "Wonder" *> pure Wonder
-          <|> string "Centennial" *> pure Centennial
-          <|> string "Imperious" *> pure Imperious
+parseEvent :: Parser Event
+parseEvent = do
+  pid <- parsePlayerId
+  void space
 
-coord :: Parser Coord
-coord = do
-  col <- decimal
-  void $ char '-'
-  row <- satisfy (\c -> c >= 'A' && c <= 'I')
-  return (col, row)
-
-event :: Parser Event
-event = do
-  pid <- decimal
-  boundary
-  action <- lexeme
-  skipSpace
-
-  case action of
-    "HELLO"   -> HelloEvent <$> decimal
-    "JOIN"    -> pure $ JoinEvent pid
-    "DRAW"    -> DrawEvent pid <$> optional coord
-    "PLAY"    -> PlayEvent pid <$> coord
-    "DISCARD" -> DiscardEvent pid <$> coord
-    "RETURN"  -> ReturnEvent pid <$> coord
-    "MARKER"  -> MarkerEvent pid <$> company <*> optional (space *> coord)
-    "MONEY"   -> MoneyEvent pid <$> signed decimal
-    "STOCK"   -> StockEvent pid <$> company <* space <*> signed decimal
-    _         -> undefined -- TODO: Error handling
+  parseJoin pid
+    <|> parseDraw pid
+    <|> parsePlay pid
+    <|> parseDiscard pid
+    <|> parseReturn pid
+    <|> parseMarker pid
+    <|> parseMoney pid
+    <|> parseStock pid
+  where
+    parseJoin pid = string "JOIN"
+      *> pure (JoinEvent pid)
+    parseDraw pid = string "DRAW"
+      *> (DrawEvent pid <$> optional (space *> parseTile))
+    parsePlay pid = PlayEvent pid
+      <$> (string "PLAY" *> space *> parseTile)
+    parseDiscard pid = DiscardEvent pid
+      <$> (string "DISCARD" *> space *> parseTile)
+    parseReturn pid = ReturnEvent pid
+      <$> (string "RETURN" *> space *> parseTile)
+    parseMarker pid = MarkerEvent pid
+      <$> (string "MARKER" *> space *> parseCompany)
+      <*> optional (space *> parseTile)
+    parseMoney pid = MoneyEvent pid
+      <$> (string "MONEY" *> space *> signed decimal)
+    parseStock pid = StockEvent pid
+      <$> (string "STOCK" *> space *> parseCompany)
+      <* space
+      <*> signed decimal
