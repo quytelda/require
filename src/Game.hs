@@ -7,12 +7,17 @@ import           Conduit
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.Map.Strict        as Map
+import qualified Data.Map.Strict     as Map
+import           Debug.Trace
 import           System.Random
 
 import           Types
 
 handleEvent :: MonadThrow m => Event -> GameMonad m ()
+handleEvent (JoinEvent pid)             = do exists <- playerExists pid
+                                             when exists $
+                                               throwM $ BadPlayerId pid
+                                             addPlayer pid
 handleEvent (DrawEvent pid _)           = grabFromPool
                                           >>= setTileStatus (Hand pid)
 handleEvent (PlayEvent pid tile)        = checkHasTile pid tile
@@ -25,11 +30,13 @@ handleEvent (MarkerEvent _ com mtile)   = setMarker com mtile
 handleEvent (MoneyEvent pid amount)     = transferMoney pid amount
 handleEvent (StockEvent pid com amount) = transferStock pid com amount
 
-handleEvents :: MonadThrow m => ConduitT Event o (GameMonad m) ()
-handleEvents = awaitForever $ lift . handleEvent
-
 --------------------------------------------------------------------------------
 -- Game Transactions
+
+playerExists :: MonadThrow m => PlayerId -> GameMonad m Bool
+playerExists pid = do
+  Game{..} <- get
+  return $ Map.member pid gameMoney || Map.member pid gameStocks
 
 addPlayer :: Monad m => PlayerId -> GameMonad m ()
 addPlayer pid = modify' $ \game -> game
@@ -83,8 +90,8 @@ getMoney pid =
 
 setMoney :: MonadThrow m => PlayerId -> Money -> GameMonad m ()
 setMoney pid amount = do
-  playerExists <- gets $ Map.member pid . gameMoney
-  unless playerExists $
+  exists <- playerExists pid
+  unless exists $
     throwM $ BadPlayerId pid
 
   modify' $ \game ->

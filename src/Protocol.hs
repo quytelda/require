@@ -34,6 +34,8 @@ handshake pid = do
 renderEvent :: Event -> B.Builder
 renderEvent e =
   case e of
+    JoinEvent    pid             -> renderEvent' pid "JOIN"
+                                    []
     DrawEvent    pid mc          -> renderEvent' pid "DRAW"
                                     (maybeToList $ renderCoord <$> mc)
     PlayEvent    pid c           -> renderEvent' pid "PLAY"
@@ -88,7 +90,8 @@ parseEvent = do
   pid <- parsePlayerId
   void space
 
-  parseDraw pid
+  parseJoin pid
+    <|> parseDraw pid
     <|> parsePlay pid
     <|> parseDiscard pid
     <|> parseReturn pid
@@ -96,6 +99,8 @@ parseEvent = do
     <|> parseMoney pid
     <|> parseStock pid
   where
+    parseJoin pid = string "JOIN"
+      *> pure (JoinEvent pid)
     parseDraw pid = string "DRAW"
       *> (DrawEvent pid <$> optional (space *> parseTile))
     parsePlay pid = PlayEvent pid

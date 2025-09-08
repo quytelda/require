@@ -80,7 +80,8 @@ newGame = do
   return defaultGame { gameRNG = gen }
 
 data Event
-  = DrawEvent    PlayerId (Maybe Coord) -- ^ Draw a tile
+  = JoinEvent    PlayerId       -- ^ A new player joining
+  | DrawEvent    PlayerId (Maybe Coord) -- ^ Draw a tile
   | PlayEvent    PlayerId Coord -- ^ Put a tile on the board
   | DiscardEvent PlayerId Coord -- ^ Discard an unusable tile
   | ReturnEvent  PlayerId Coord -- ^ Return a pile to the pool
