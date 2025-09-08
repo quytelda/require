@@ -4,16 +4,12 @@
 module Game where
 
 import           Conduit
-import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.State
-import           Data.Conduit.Network
-import           Data.Map.Strict        (Map)
 import qualified Data.Map.Strict        as Map
 import           System.Random
 
-import           Protocol
 import           Types
 
 handleEvent :: MonadThrow m => Event -> GameMonad m ()

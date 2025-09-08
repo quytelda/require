@@ -7,7 +7,6 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString                  (ByteString)
-import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Builder          as B
 import           Data.Conduit.Attoparsec
 import           Data.List                        (intersperse)

@@ -3,11 +3,7 @@ module Types where
 
 import           Conduit
 import           Control.Exception
-import           Control.Monad
 import           Control.Monad.State
-import           Data.ByteString     (ByteString)
-import qualified Data.ByteString     as BS
-import           Data.Conduit.Lift
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           System.Random

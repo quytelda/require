@@ -7,7 +7,6 @@ import           Conduit
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad
-import           Data.ByteString          (ByteString)
 import           Data.Conduit.Network
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
