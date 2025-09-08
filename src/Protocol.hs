@@ -21,8 +21,8 @@ import           Types
 parseEvents :: MonadThrow m => ConduitT ByteString Event m ()
 parseEvents = peekForever $ lineAsciiC ((sinkParser parseEvent) >>= yield)
 
-renderEvents :: PrimMonad m => ConduitT Event ByteString m ()
-renderEvents = mapC renderEvent .| builderToByteString .| intersperseC "\n"
+renderEvents :: Monad m => ConduitT Event ByteString m ()
+renderEvents = awaitForever $ sourceLazy . B.toLazyByteString . renderEvent
 
 --------------------------------------------------------------------------------
 -- Rendering
@@ -51,6 +51,7 @@ renderEvent e =
                                     ]
     MoneyEvent pid amount        -> renderEvent' pid "MONEY"
                                     [B.intDec amount]
+    <> "\n"
   where
     renderCompany = B.string8 . show
     renderEvent' pid evt args =

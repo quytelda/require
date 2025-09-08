@@ -50,28 +50,32 @@ broadcast server = awaitForever $ \x -> yield x .| sendAll
     sendAll = liftIO (readTVarIO server.clients)
               >>= sequenceSinks . fmap sinkTQueue
 
+serveClient :: Server -> AppData -> IO ()
+serveClient server app = do
+  -- A new client has just connected, so we register the connection in
+  -- the client table.
+  uid <- newUID server
+  sendQueue <- newTQueueIO
+  atomically $ modifyTVar' server.clients $ Map.insert uid sendQueue
+  putStrLn
+    $ "New connection from "
+    <> show (appSockAddr app)
+    <> ", UID: " <> show uid
+
+  -- Stream incoming events to the global incoming queue while
+  -- streaming outgoing events from the client's outgoing queue.
+  race_
+    (runConduit $ appSource app .| parseEvents .| sinkTQueue server.recvQueue)
+    (runConduit $ sourceTQueue sendQueue .| renderEvents .| appSink app)
+
+  -- The client has now disconnected, so we can clean up.
+  putStrLn $ "Client disconnected, UID: " <> show uid
+  atomically $ modifyTVar' server.clients $ Map.delete uid
+
 -- | Begin accepting connections from clients
 runServer :: IO ()
 runServer = do
   server <- newServer
   concurrently_
-    (runConduit $ sourceTQueue server.recvQueue .| iterMC print .| broadcast server)
-    (runTCPServer (serverSettings 11073 "127.0.0.1") $ \app -> do
-        uid <- newUID server
-        sendQueue <- newTQueueIO
-        atomically $ modifyTVar' server.clients $ Map.insert uid sendQueue
-        putStrLn
-          $ "New connection from "
-          <> show (appSockAddr app)
-          <> maybe mempty (\s -> " (" <> show s <> ")") (appLocalAddr app)
-          <> ", UID: "
-          <> show uid
-
-        race_
-          (runConduit $ appSource app .| parseEvents .| sinkTQueue server.recvQueue)
-          (runConduit $ sourceTQueue sendQueue .| renderEvents .| appSink app)
-
-        putStrLn $ "Client disconnected, UID: " <> show uid
-        atomically $ modifyTVar' server.clients $ Map.delete uid
-    )
-
+    (runConduit $ sourceTQueue server.recvQueue .| broadcast server)
+    (runTCPServer (serverSettings 11073 "127.0.0.1") (serveClient server))
