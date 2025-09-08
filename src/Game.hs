@@ -51,7 +51,7 @@ getMarker com = gets $ Map.lookup com . gameMarkers
 
 setMarker :: Monad m => Company -> Maybe Coord -> GameMonad m ()
 setMarker com mtile = modify' $ \game -> game
-  { gameMarkers = Map.update (const mtile) com (gameMarkers game) }
+  { gameMarkers = Map.alter (const mtile) com (gameMarkers game) }
 
 getTileStatus :: Monad m => Coord -> GameMonad m TileLoc
 getTileStatus tile = gets $ Map.findWithDefault Pool tile . gameTiles
