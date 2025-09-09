@@ -8,7 +8,6 @@ import           Control.Exception
 import           Control.Monad
 import           Control.Monad.State
 import qualified Data.Map.Strict     as Map
-import           Debug.Trace
 import           System.Random
 
 import           Types
