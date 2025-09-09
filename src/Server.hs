@@ -12,6 +12,8 @@ import           Control.Monad.State
 import           Data.Conduit.Network
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
+import           Data.Sequence            (Seq, (|>))
+import qualified Data.Sequence            as Seq
 
 import           Game
 import           Protocol
@@ -24,10 +26,12 @@ sourceTQueue :: MonadIO m => TQueue a -> ConduitT i a m ()
 sourceTQueue queue =
   forever $ (liftIO . atomically . readTQueue) queue >>= yield
 
+-- | Network Server State
 data Server = Server
-  { uidSource :: TVar PlayerId
-  , clients   :: TVar (Map PlayerId (TQueue Event))
-  , recvQueue :: TQueue Event
+  { uidSource    :: TVar PlayerId
+  , clients      :: TVar (Map PlayerId (TQueue Event))
+  , recvQueue    :: TQueue Event
+  , eventHistory :: TVar (Seq Event)
   }
 
 newServer :: IO Server
@@ -36,6 +40,7 @@ newServer =
   <$> newTVarIO 0
   <*> newTVarIO Map.empty
   <*> newTQueueIO
+  <*> newTVarIO Seq.empty
 
 -- | Generate a new 'PlayerId' guaranteed to be unique for this
 -- 'Server'.
@@ -69,13 +74,15 @@ serveClient server app = do
     .| appSink app
 
   -- Register the connection in the client table.
-  atomically $ modifyTVar' server.clients $ Map.insert uid sendQueue
+  history <- atomically $
+    readTVar server.eventHistory
+    <* modifyTVar' server.clients (Map.insert uid sendQueue)
 
   -- Stream incoming events to the global incoming queue while
   -- streaming outgoing events from the client's outgoing queue.
   race_
     (runConduit $ appSource app .| parseEvents .| sinkTQueue server.recvQueue)
-    (runConduit $ sourceTQueue sendQueue .| renderEvents .| appSink app)
+    (runConduit $ (yieldMany history >> sourceTQueue sendQueue) .| renderEvents .| appSink app)
 
   -- The client has now disconnected, so we can clean up.
   putStrLn $ "Client disconnected, UID: " <> show uid
@@ -85,9 +92,14 @@ serveClient server app = do
 runServer :: IO ()
 runServer = do
   server <- newServer
+  let sinkEvents = sequenceSinks [broadcast server, sinkHistory server]
   concurrently_
-    (runConduit $ sourceTQueue server.recvQueue .| gameConduit .| broadcast server)
+    (runConduit $ sourceTQueue server.recvQueue .| gameConduit .| sinkEvents)
     (runTCPServer (serverSettings 11073 "127.0.0.1") (serveClient server))
+
+sinkHistory :: MonadIO m => Server -> ConduitT Event o m ()
+sinkHistory server = awaitForever $ \event ->
+  liftIO $ atomically $ modifyTVar' server.eventHistory (|> event)
 
 gameConduit :: (MonadIO m, MonadCatch m) => ConduitT Event Event m ()
 gameConduit = evalStateLC defaultGame $ awaitForever $ \event -> do
