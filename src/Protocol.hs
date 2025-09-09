@@ -21,7 +21,19 @@ parseEvents :: MonadThrow m => ConduitT ByteString Event m ()
 parseEvents = peekForever $ lineAsciiC ((sinkParser parseEvent) >>= yield)
 
 renderEvents :: Monad m => ConduitT Event ByteString m ()
-renderEvents = awaitForever $ sourceLazy . B.toLazyByteString . renderEvent
+renderEvents = awaitForever $ sourceLazy . B.toLazyByteString . (<> "\n") . renderEvent
+
+renderErrors :: Monad m => ConduitT ErrorMessage ByteString m ()
+renderErrors = awaitForever $ sourceLazy . B.toLazyByteString . (<> "\n") . renderError
+
+renderMessages :: Monad m => ConduitT (Either ErrorMessage Event) ByteString m ()
+renderMessages =
+  void $ getZipConduit $ (,)
+  <$> ZipConduit (lefts .| renderErrors)
+  <*> ZipConduit (rights .| renderEvents)
+  where
+    lefts = awaitForever $ either yield (const $ pure ())
+    rights = awaitForever $ either (const $ pure ()) yield
 
 handshake :: MonadThrow m => PlayerId -> ConduitT ByteString ByteString m ()
 handshake pid = do
@@ -30,6 +42,16 @@ handshake pid = do
 
 --------------------------------------------------------------------------------
 -- Rendering
+
+renderError :: ErrorMessage -> B.Builder
+renderError (ErrorMessage event desc) =
+  "ERROR"
+  <> B.char8 ' '
+  <> quoted (renderEvent event)
+  <> B.char8 ' '
+  <> B.string8 (show desc)
+  where
+    quoted b = B.char8 '"' <> b <> B.char8 '"'
 
 renderEvent :: Event -> B.Builder
 renderEvent e =
@@ -53,7 +75,6 @@ renderEvent e =
                                     ]
     MoneyEvent pid amount        -> renderEvent' pid "MONEY"
                                     [B.intDec amount]
-    <> "\n"
   where
     renderCompany = B.string8 . show
     renderEvent' pid evt args =

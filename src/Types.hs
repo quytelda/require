@@ -4,6 +4,7 @@ module Types where
 import           Conduit
 import           Control.Exception
 import           Control.Monad.State
+import           Data.ByteString     (ByteString)
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           System.Random
@@ -90,8 +91,21 @@ data Event
   | StockEvent   PlayerId Company Int -- ^ Take or return stocks
   deriving (Eq, Show)
 
+eventSource :: Event -> PlayerId
+eventSource (JoinEvent    pid)     = pid
+eventSource (DrawEvent    pid _)   = pid
+eventSource (PlayEvent    pid _)   = pid
+eventSource (DiscardEvent pid _)   = pid
+eventSource (ReturnEvent  pid _)   = pid
+eventSource (MarkerEvent  pid _ _) = pid
+eventSource (MoneyEvent   pid _)   = pid
+eventSource (StockEvent   pid _ _) = pid
+
 --------------------------------------------------------------------------------
 -- Errors
+
+data ErrorMessage = ErrorMessage Event ByteString
+  deriving (Eq, Show)
 
 -- | Problematic situations that might arise during the game.
 data GameError
