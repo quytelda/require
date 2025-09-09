@@ -126,10 +126,10 @@ transferMoney pid amount = do
   bankBal   <- getMoney 0
   playerBal <- getMoney pid
 
-  unless (bankBal > amount) $
+  unless (bankBal >= amount) $
     throwM $ OutOfMoney 0
 
-  unless (playerBal > negate amount) $
+  unless (playerBal >= negate amount) $
     throwM $ OutOfMoney pid
 
   setMoney 0 (bankBal - amount)
@@ -140,10 +140,10 @@ transferStock pid com amount = do
   bankQty   <- getStocks 0   com
   playerQty <- getStocks pid com
 
-  unless (bankQty > amount) $
+  unless (bankQty >= amount) $
     throwM $ OutOfStock 0 com
 
-  unless (playerQty > negate amount) $
+  unless (playerQty >= negate amount) $
     throwM $ OutOfStock pid com
 
   setStocks 0   com (bankQty - amount)
