@@ -57,6 +57,7 @@ broadcast server = awaitForever $ \x -> yield x .| sendAll
     sendAll = liftIO (readTVarIO server.clients)
               >>= sequenceSinks . fmap sinkTQueue
 
+-- | The life-cycle thread of a client.
 serveClient :: Server -> AppData -> IO ()
 serveClient server app = do
   -- A new client has just connected.
@@ -73,9 +74,11 @@ serveClient server app = do
     .| handshake uid
     .| appSink app
 
-  -- Register the connection in the client table.
-  history <- atomically $
-    readTVar server.eventHistory
+  -- Register the connection in the client table. Past this point, we
+  -- need to be concerned about cleaning up resources if the client
+  -- exits.
+  history <- atomically
+    $ readTVar server.eventHistory
     <* modifyTVar' server.clients (Map.insert uid sendQueue)
 
   -- Stream incoming events to the global incoming queue while
@@ -88,7 +91,9 @@ serveClient server app = do
   putStrLn $ "Client disconnected, UID: " <> show uid
   atomically $ modifyTVar' server.clients $ Map.delete uid
 
--- | Begin accepting connections from clients
+-- | The server launches two primary threads: one runs the primary
+-- game loop, while the other accepts incoming connections from new
+-- clients.
 runServer :: IO ()
 runServer = do
   server <- newServer
@@ -97,10 +102,13 @@ runServer = do
     (runConduit $ sourceTQueue server.recvQueue .| gameConduit .| sinkEvents)
     (runTCPServer (serverSettings 11073 "127.0.0.1") (serveClient server))
 
+-- | Add an event to the server's event history.
 sinkHistory :: MonadIO m => Server -> ConduitT Event o m ()
 sinkHistory server = awaitForever $ \event ->
   liftIO $ atomically $ modifyTVar' server.eventHistory (|> event)
 
+-- | Apply events to the game state. If the event causes an error,
+-- drop the event.
 gameConduit :: (MonadIO m, MonadCatch m) => ConduitT Event Event m ()
 gameConduit = evalStateLC defaultGame $ awaitForever $ \event -> do
   result <- lift $ try $ handleEvent event
