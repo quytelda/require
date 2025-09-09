@@ -65,19 +65,23 @@ renderCoord (col, row) = B.intDec col <> B.char8 '-' <> B.char8 row
 --------------------------------------------------------------------------------
 -- Parsing
 
+label :: String -> Parser a -> Parser a
+label = flip (<?>)
+
 parseTile :: Parser Coord
-parseTile =
+parseTile = label "parseTile" $
   (,)
   <$> decimal
   <*  char8 '-'
   <*> letter_ascii
 
 parsePlayerId :: Parser PlayerId
-parsePlayerId = decimal <?> "PlayerId"
+parsePlayerId = label "parsePlayerId" decimal
 
 parseCompany :: Parser Company
 parseCompany =
-  string "Triangle" *> pure Triangle
+  label "parseCompany"
+  $   string "Triangle" *> pure Triangle
   <|> string "Love" *> pure Love
   <|> string "Albanian" *> pure Albanian
   <|> string "Fiesta" *> pure Fiesta
@@ -86,7 +90,7 @@ parseCompany =
   <|> string "Imperious" *> pure Imperious
 
 parseEvent :: Parser Event
-parseEvent = do
+parseEvent = label "parseEvent" $ do
   pid <- parsePlayerId
   void space
 
