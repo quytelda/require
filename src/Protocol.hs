@@ -79,8 +79,8 @@ parseEvent = label "parseEvent" $ do
   where
     parseJoin pid = string "JOIN"
       *> pure (JoinEvent pid)
-    parseDraw pid = string "DRAW"
-      *> pure (DrawEvent pid)
+    parseDraw pid = DrawEvent pid
+      <$> (string "DRAW" *> optional (space *> parseTile))
     parsePlay pid = PlayEvent pid
       <$> (string "PLAY" *> space *> parseTile)
     parseDiscard pid = DiscardEvent pid
@@ -105,8 +105,8 @@ renderEvent event =
   case event of
     JoinEvent    pid             -> renderEvent' pid "JOIN"
                                     []
-    DrawEvent    pid             -> renderEvent' pid "DRAW"
-                                    []
+    DrawEvent    pid mc          -> renderEvent' pid "DRAW"
+                                    (maybeToList $ renderTile <$> mc)
     PlayEvent    pid c           -> renderEvent' pid "PLAY"
                                     [renderTile c]
     DiscardEvent pid c           -> renderEvent' pid "DISCARD"

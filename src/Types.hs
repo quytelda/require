@@ -82,7 +82,7 @@ type Game = StateT GameState
 -- must be broadcast to all players.
 data Event
   = JoinEvent    PlayerId       -- ^ A new player is joining
-  | DrawEvent    PlayerId       -- ^ Draw a tile
+  | DrawEvent    PlayerId (Maybe Tile) -- ^ Draw a tile
   | PlayEvent    PlayerId Tile -- ^ Put a tile on the board
   | DiscardEvent PlayerId Tile -- ^ Discard an unusable tile
   | ReturnEvent  PlayerId Tile -- ^ Return a pile to the pool
@@ -93,7 +93,7 @@ data Event
 
 eventSource :: Event -> PlayerId
 eventSource (JoinEvent    pid)     = pid
-eventSource (DrawEvent    pid)     = pid
+eventSource (DrawEvent    pid _)   = pid
 eventSource (PlayEvent    pid _)   = pid
 eventSource (DiscardEvent pid _)   = pid
 eventSource (ReturnEvent  pid _)   = pid
