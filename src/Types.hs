@@ -37,11 +37,11 @@ data TileLoc
 data Company
   = Triangle
   | Love
-  | Albanian
+  | Armenian
   | Fiesta
   | Wonder
-  | Centennial
-  | Imperious
+  | Century
+  | Important
   deriving (Enum, Eq, Show, Ord)
 
 -- | Each player and the bank hold a collection of stocks in each
