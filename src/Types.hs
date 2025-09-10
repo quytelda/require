@@ -3,12 +3,14 @@
 module Types where
 
 import           Conduit
+import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad.State
 import           Data.ByteString         (ByteString)
 import           Data.Conduit.Attoparsec
 import           Data.Map.Strict         (Map)
 import qualified Data.Map.Strict         as Map
+import           Data.Sequence           (Seq, (|>))
 import           System.Random
 
 type Money = Int
@@ -119,3 +121,43 @@ data RequireException
   deriving (Show)
 
 instance Exception RequireException
+
+--------------------------------------------------------------------------------
+-- Server Types
+
+type MessageQueue = TQueue (Either RequireException Event)
+
+data Server = Server
+  { uidSource    :: TVar PlayerId
+  , clients      :: TVar (Map PlayerId MessageQueue)
+  , recvQueue    :: TQueue Event
+  , eventHistory :: TVar (Seq Event)
+  }
+
+newServer :: IO Server
+newServer =
+  Server
+  <$> newTVarIO 0
+  <*> newTVarIO mempty
+  <*> newTQueueIO
+  <*> newTVarIO mempty
+
+-- | Generate a new 'PlayerId' guaranteed to be unique for this
+-- 'Server'.
+newPlayerId :: Server -> IO PlayerId
+newPlayerId server = atomically $ do
+  modifyTVar' (uidSource server) (+1)
+  u <- readTVar (uidSource server)
+  return u
+
+sinkTQueue :: MonadIO m => TQueue a -> ConduitT a o m ()
+sinkTQueue queue = awaitForever $ liftIO . atomically . writeTQueue queue
+
+sourceTQueue :: MonadIO m => TQueue a -> ConduitT i a m ()
+sourceTQueue queue =
+  forever $ (liftIO . atomically . readTQueue) queue >>= yield
+
+-- | Add an event to the server's event history.
+sinkHistory :: MonadIO m => Server -> ConduitT Event o m ()
+sinkHistory server = awaitForever $
+  liftIO . atomically . modifyTVar' (eventHistory server) . flip (|>)
