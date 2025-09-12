@@ -178,3 +178,22 @@ sourceTQueue queue =
 sinkHistory :: MonadIO m => Server -> ConduitT Event o m ()
 sinkHistory server = awaitForever $
   liftIO . atomically . modifyTVar' (eventHistory server) . flip (|>)
+
+--------------------------------------------------------------------------------
+-- Misc. Useful Conduits
+
+eitherC
+  :: Monad m
+  => ConduitT a c m ()
+  -> ConduitT b c m ()
+  -> ConduitT (Either a b) c m ()
+eitherC left right =
+  void $ getZipConduit $ (,)
+  <$> ZipConduit (leftsC  .| left)
+  <*> ZipConduit (rightsC .| right)
+
+leftsC :: Monad m => ConduitT (Either a b) a m ()
+leftsC = awaitForever $ either yield (const $ pure ())
+
+rightsC :: Monad m => ConduitT (Either a b) b m ()
+rightsC = awaitForever $ either (const $ pure ()) yield
