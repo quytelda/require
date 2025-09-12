@@ -33,16 +33,23 @@ module Types
 
     -- * Useful Conduits
   , eitherC
+
+    -- * Utility Functions
+  , putBuilder
+  , errBuilder
+  , show8
   ) where
 
 import           Conduit
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad.State
+import qualified Data.ByteString.Builder as B
 import           Data.Conduit.Attoparsec
 import           Data.Map.Strict         (Map)
 import qualified Data.Map.Strict         as Map
 import           Data.Sequence           (Seq, (|>))
+import           System.IO               (stderr, stdout)
 import           System.Random
 
 type Money = Int
@@ -228,3 +235,15 @@ leftsC = awaitForever $ either yield (const $ pure ())
 
 rightsC :: Monad m => ConduitT (Either a b) b m ()
 rightsC = awaitForever $ either (const $ pure ()) yield
+
+--------------------------------------------------------------------------------
+-- Utility Functions
+
+putBuilder :: B.Builder -> IO ()
+putBuilder = B.hPutBuilder stdout
+
+errBuilder :: B.Builder -> IO ()
+errBuilder = B.hPutBuilder stderr
+
+show8 :: Show a => a -> B.Builder
+show8 = B.string8 . show

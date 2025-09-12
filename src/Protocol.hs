@@ -5,6 +5,8 @@ module Protocol
   , parseEvents
   , renderEvents
   , renderErrors
+  , renderEvent
+  , renderError
   ) where
 
 import           Conduit

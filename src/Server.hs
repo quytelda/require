@@ -9,7 +9,7 @@ import           Conduit
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad.Catch
-import           Control.Monad.State
+import           Data.ByteString.Builder  as B
 import           Data.Conduit.Network
 import qualified Data.Map.Strict          as Map
 import           Data.Sequence            (Seq)
@@ -47,11 +47,20 @@ gameLoop server = do
     result <- lift $ try $ handleEvent event
     case result of
       Right event' -> do yield event'
-                         lift get >>= liftIO . print
-      Left  err    -> liftIO $ sendError event err
+                         liftIO $ putBuilder
+                           $ "> "
+                           <> renderEvent event'
+                           <> B.char8 '\n'
+      Left  err    -> liftIO $ handleError event err
   where
-    sendError :: Event -> GameError -> IO ()
-    sendError event err = do
+    handleError event err = do
+      errBuilder
+        $ "> "
+        <> renderEvent event
+        <> B.char8 '\n'
+        <> "error: "
+        <> B.string8 (displayException err)
+        <> B.char8 '\n'
       let pid = eventSource event
       mqueue <- Map.lookup pid <$> readTVarIO server.clients
       case mqueue of
@@ -59,8 +68,11 @@ gameLoop server = do
           $ writeTQueue queue
           $ Left
           $ EventException event err
-        Nothing -> putStrLn
-          $ "Warning: unable to deliver error to player #" <> show pid
+        Nothing ->
+          errBuilder
+          $ "Warning: unable to deliver error to player #"
+          <> B.intDec pid
+          <> B.char8 '\n'
 
 -- | The life-cycle thread of a client.
 serveClient :: Server -> AppData -> IO ()
@@ -68,10 +80,11 @@ serveClient server app = do
   -- A new client has just connected.
   pid <- newPlayerId server
   sendQueue <- newTQueueIO
-  putStrLn
+  putBuilder
     $ "New connection from "
-    <> show (appSockAddr app)
-    <> ", PID: " <> show pid
+    <> show8 (appSockAddr app)
+    <> ", PID: " <> B.intDec pid
+    <> B.char8 '\n'
 
   -- Wait for the client to initiate a handshake.
   runConduit
@@ -93,7 +106,10 @@ serveClient server app = do
           (runConduit $ streamIncoming server pid app sendQueue)
           (runConduit $ streamOutgoing app sendQueue history)
     )
-    (do putStrLn $ "Client disconnected, UID: " <> show pid
+    (do putBuilder
+          $ "Client disconnected, PID: "
+          <> B.intDec pid
+          <> B.char8 '\n'
         atomically $ modifyTVar' server.clients $ Map.delete pid
     )
 
