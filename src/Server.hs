@@ -82,19 +82,20 @@ serveClient server app = do
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
   -- exits.
-  history <- atomically
-    $  readTVar server.eventHistory
-    <* modifyTVar' server.clients (Map.insert pid sendQueue)
+  finally
+    (do history <- atomically
+          $  readTVar server.eventHistory
+          <* modifyTVar' server.clients (Map.insert pid sendQueue)
 
-  -- Stream incoming events to the global incoming queue while
-  -- streaming outgoing events from the client's outgoing queue.
-  race_
-    (runConduit $ streamIncoming server app sendQueue)
-    (runConduit $ streamOutgoing app sendQueue history)
-
-  -- The client has now disconnected, so we can clean up.
-  putStrLn $ "Client disconnected, UID: " <> show pid
-  atomically $ modifyTVar' server.clients $ Map.delete pid
+        -- Stream incoming events to the global incoming queue while
+        -- streaming outgoing events from the client's outgoing queue.
+        race_
+          (runConduit $ streamIncoming server app sendQueue)
+          (runConduit $ streamOutgoing app sendQueue history)
+    )
+    (do putStrLn $ "Client disconnected, UID: " <> show pid
+        atomically $ modifyTVar' server.clients $ Map.delete pid
+    )
 
 streamIncoming
   :: MonadIO m
