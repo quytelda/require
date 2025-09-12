@@ -91,6 +91,10 @@ serveClient server app = do
     $ appSource app
     .| handshake pid
     .| appSink app
+  putBuilder
+    $ "Handshake completed, PID: "
+    <> B.intDec pid
+    <> B.char8 '\n'
 
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
