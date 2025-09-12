@@ -23,7 +23,7 @@ runServer = do
   server <- newServer
   concurrently_
     (runGameThread server)
-    (runTCPServer (serverSettings 11073 "127.0.0.1") (serveClient server))
+    (runTCPServer (serverSettings 11073 "*") (serveClient server))
 
 -- | This thread handles the main game loop and runs for as long as
 -- the server is alive.
@@ -131,6 +131,7 @@ streamIncoming server pid app sendQueue =
                       <> B.intDec pid
                       <> "): "
                       <> B.string8 (displayException err)
+                      <> B.char8 '\n'
              )
       .| mapC (Left . ParseException)
       .| sinkTQueue sendQueue
