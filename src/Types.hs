@@ -133,7 +133,7 @@ instance Exception GameError where
 -- | Exceptions that can be safely handled by the server without
 -- crashing any threads.
 data RequireException
-  = ParseException ByteString ParseError
+  = ParseException ParseError
   | EventException Event GameError
   deriving (Show)
 
