@@ -35,8 +35,10 @@ handshake pid = do
 
 parseEvents
   :: Monad m
-  => ConduitT ByteString (Either ParseError Event) m ()
-parseEvents = peekForever $ lineAsciiC (sinkParserEither parseEvent >>= yield)
+  => PlayerId
+  -> ConduitT ByteString (Either ParseError Event) m ()
+parseEvents pid =
+  peekForever $ lineAsciiC (sinkParserEither (parseEvent pid) >>= yield)
 
 renderEvents
   :: Monad m
@@ -61,9 +63,6 @@ parseTile = label "parseTile" $
   <*  char8 '-'
   <*> letter_ascii
 
-parsePlayerId :: Parser PlayerId
-parsePlayerId = label "parsePlayerId" decimal
-
 parseCompany :: Parser Company
 parseCompany =
   label "parseCompany"
@@ -75,35 +74,32 @@ parseCompany =
   <|> string "Century"   $> Century
   <|> string "Important" $> Important
 
-parseEvent :: Parser Event
-parseEvent = label "parseEvent" $ do
-  pid <- parsePlayerId
-  void space
-
-  parseJoin pid
-    <|> parseDraw pid
-    <|> parsePlay pid
-    <|> parseDiscard pid
-    <|> parseReturn pid
-    <|> parseMarker pid
-    <|> parseMoney pid
-    <|> parseStock pid
+parseEvent :: PlayerId -> Parser Event
+parseEvent pid = label "parseEvent" $
+  parseJoin
+  <|> parseDraw
+  <|> parsePlay
+  <|> parseDiscard
+  <|> parseReturn
+  <|> parseMarker
+  <|> parseMoney
+  <|> parseStock
   where
-    parseJoin pid = string "JOIN" $> JoinEvent pid
-    parseDraw pid = DrawEvent pid
+    parseJoin = string "JOIN" $> JoinEvent pid
+    parseDraw = DrawEvent pid
       <$> (string "DRAW" *> optional (space *> parseTile))
-    parsePlay pid = PlayEvent pid
+    parsePlay = PlayEvent pid
       <$> (string "PLAY" *> space *> parseTile)
-    parseDiscard pid = DiscardEvent pid
+    parseDiscard = DiscardEvent pid
       <$> (string "DISCARD" *> space *> parseTile)
-    parseReturn pid = ReturnEvent pid
+    parseReturn = ReturnEvent pid
       <$> (string "RETURN" *> space *> parseTile)
-    parseMarker pid = MarkerEvent pid
+    parseMarker = MarkerEvent pid
       <$> (string "MARKER" *> space *> parseCompany)
       <*> optional (space *> parseTile)
-    parseMoney pid = MoneyEvent pid
+    parseMoney = MoneyEvent pid
       <$> (string "MONEY" *> space *> signed decimal)
-    parseStock pid = StockEvent pid
+    parseStock = StockEvent pid
       <$> (string "STOCK" *> space *> parseCompany)
       <* space
       <*> signed decimal

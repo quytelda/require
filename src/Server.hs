@@ -90,7 +90,7 @@ serveClient server app = do
         -- Stream incoming events to the global incoming queue while
         -- streaming outgoing events from the client's outgoing queue.
         race_
-          (runConduit $ streamIncoming server app sendQueue)
+          (runConduit $ streamIncoming server pid app sendQueue)
           (runConduit $ streamOutgoing app sendQueue history)
     )
     (do putStrLn $ "Client disconnected, UID: " <> show pid
@@ -100,12 +100,13 @@ serveClient server app = do
 streamIncoming
   :: MonadIO m
   => Server
+  -> PlayerId
   -> AppData
   -> MessageQueue
   -> ConduitT i o m ()
-streamIncoming server app sendQueue =
+streamIncoming server pid app sendQueue =
   appSource app
-  .| parseEvents
+  .| parseEvents pid
   .| eitherC handleErrors (sinkTQueue server.recvQueue)
   where
     handleErrors = mapC (Left . ParseException) .| sinkTQueue sendQueue
