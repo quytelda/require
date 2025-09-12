@@ -8,6 +8,7 @@ import           Control.Monad
 import           Control.Monad.Catch
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString                  (ByteString)
+import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Builder          as B
 import           Data.Conduit.Attoparsec
 import           Data.List                        (intersperse)
@@ -27,9 +28,9 @@ handshake pid = do
   sourceLazy $ B.toLazyByteString $ "HELLO " <> B.intDec pid <> "\n"
 
 parseEvents
-  :: MonadThrow m
-  => ConduitT ByteString Event m ()
-parseEvents = peekForever $ lineAsciiC (sinkParser parseEvent >>= yield)
+  :: Monad m
+  => ConduitT ByteString (Either ParseError Event) m ()
+parseEvents = peekForever $ lineAsciiC (sinkParserEither parseEvent >>= yield)
 
 renderEvents
   :: Monad m
