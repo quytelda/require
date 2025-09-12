@@ -105,10 +105,11 @@ eventSource (StockEvent   pid _ _) = pid
 -- Exceptions
 
 data GameError
-  = NotEnoughTiles
-  | NotEnoughMoney
-  | NotEnoughStock Company
-  | MissingTile Tile
+  = InvalidPlayerId PlayerId
+  | NotEnoughTiles
+  | NotEnoughMoney PlayerId
+  | NotEnoughStock PlayerId Company
+  | MissingTile PlayerId Tile
   deriving (Eq, Show)
 
 instance Exception GameError
