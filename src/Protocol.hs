@@ -37,6 +37,11 @@ renderEvents
   => ConduitT Event ByteString m ()
 renderEvents = awaitForever $ sourceLazy . B.toLazyByteString . (<> "\n") . renderEvent
 
+renderErrors
+  :: Monad m
+  => ConduitT RequireException ByteString m ()
+renderErrors = awaitForever $ yield . toStrictByteString . (<> "\n") . renderError
+
 --------------------------------------------------------------------------------
 -- Parsing
 
@@ -131,3 +136,25 @@ renderEvent event =
 renderTile :: Tile -> B.Builder
 renderTile (col, row) = B.intDec col <> B.char8 '-' <> B.char8 row
 
+renderError :: RequireException -> B.Builder
+renderError (ParseException err)       = renderParseError err
+renderError (EventException event err) = renderEventException event err
+
+renderParseError :: ParseError -> B.Builder
+renderParseError err =
+  "PARSE_ERROR \""
+  <> B.string8 (show err)
+  <> B.char8 '"'
+
+renderEventException :: Event -> GameError -> B.Builder
+renderEventException event err =
+  "EVENT_ERROR \""
+  <> renderEvent event
+  <> "\" "
+  <> B.string8 (show $ displayException err)
+
+--------------------------------------------------------------------------------
+-- Utility Functions
+
+toStrictByteString :: B.Builder -> ByteString
+toStrictByteString = BS.toStrict . B.toLazyByteString
