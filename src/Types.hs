@@ -112,7 +112,23 @@ data GameError
   | MissingTile PlayerId Tile
   deriving (Eq, Show)
 
-instance Exception GameError
+formatPidSource :: PlayerId -> String
+formatPidSource 0 = "the bank"
+formatPidSource pid = "player #" <> show pid
+
+instance Exception GameError where
+  displayException (InvalidPlayerId pid) = "player ID is invalid: " <> show pid
+  displayException NotEnoughTiles = "the draw pool is empty"
+  displayException (NotEnoughMoney pid) = formatPidSource pid
+                                          <> " doesn't have enough money"
+  displayException (NotEnoughStock pid com) = formatPidSource pid
+                                              <> " doesn't have enough "
+                                              <> show com
+                                              <> " stock"
+  displayException (MissingTile pid tile) = formatPidSource pid
+                                            <> " doesn't have control of tile "
+                                            <> showTile tile
+    where showTile (col, row) = show col <> "-" <> pure row
 
 -- | Exceptions that can be safely handled by the server without
 -- crashing any threads.
