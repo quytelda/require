@@ -1,5 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE TupleSections             #-}
 
 module Types
   ( -- * Basic Game Types
@@ -92,14 +92,14 @@ data GameState = GameState
 
 defaultGame :: GameState
 defaultGame = GameState
-  { gameTiles   = Map.fromList $ zip allTiles (repeat Pool)
+  { gameTiles   = Map.fromList $ map (,Pool) allTiles
   , gameMarkers = Map.empty
   , gameMoney   = Map.singleton 0 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
   , gameStocks  = Map.singleton 0 defaultBankStocks
   , gameRNG     = mkStdGen 0
   }
   where
-    defaultBankStocks = Map.fromList $ zip [Triangle ..] (repeat 25)
+    defaultBankStocks = Map.fromList $ map (,25) [Triangle ..]
 
 -- | Create a default new game with a random RNG seed.
 newGameState :: MonadIO m => m GameState
@@ -145,7 +145,7 @@ data GameError
   deriving (Eq, Show)
 
 formatPidSource :: PlayerId -> String
-formatPidSource 0 = "the bank"
+formatPidSource 0   = "the bank"
 formatPidSource pid = "player #" <> show pid
 
 instance Exception GameError where
@@ -196,8 +196,7 @@ newServer =
 newPlayerId :: Server -> IO PlayerId
 newPlayerId server = atomically $ do
   modifyTVar' (uidSource server) (+1)
-  u <- readTVar (uidSource server)
-  return u
+  readTVar (uidSource server)
 
 sinkTQueue :: MonadIO m => TQueue a -> ConduitT a o m ()
 sinkTQueue queue = awaitForever $ liftIO . atomically . writeTQueue queue

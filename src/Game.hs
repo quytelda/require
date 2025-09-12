@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-
 module Game
   ( handleEvent
   ) where
@@ -9,7 +5,9 @@ module Game
 import           Conduit
 import           Control.Monad
 import           Control.Monad.State
+import           Data.Functor
 import qualified Data.Map.Strict     as Map
+import           Data.Maybe          (fromMaybe)
 import           System.Random
 
 import           Types
@@ -18,14 +16,14 @@ import           Types
 -- Event Handling
 
 handleEvent :: MonadThrow m => Event -> Game m Event
-handleEvent event@(JoinEvent pid)             = pure event <* handleJoin pid
+handleEvent event@(JoinEvent pid)             = event <$ handleJoin pid
 handleEvent       (DrawEvent pid _)           = handleDraw pid
-handleEvent event@(PlayEvent pid tile)        = pure event <* handlePlay pid tile
-handleEvent event@(DiscardEvent pid tile)     = pure event <* handleDiscard pid tile
-handleEvent event@(ReturnEvent pid tile)      = pure event <* handleReturn pid tile
-handleEvent event@(MarkerEvent pid com tile)  = pure event <* handleMarker pid com tile
-handleEvent event@(MoneyEvent pid amount)     = pure event <* handleMoney pid amount
-handleEvent event@(StockEvent pid com amount) = pure event <* handleStock pid com amount
+handleEvent event@(PlayEvent pid tile)        = event <$ handlePlay pid tile
+handleEvent event@(DiscardEvent pid tile)     = event <$ handleDiscard pid tile
+handleEvent event@(ReturnEvent pid tile)      = event <$ handleReturn pid tile
+handleEvent event@(MarkerEvent pid com tile)  = event <$ handleMarker pid com tile
+handleEvent event@(MoneyEvent pid amount)     = event <$ handleMoney pid amount
+handleEvent event@(StockEvent pid com amount) = event <$ handleStock pid com amount
 
 handleJoin :: MonadThrow m => PlayerId -> Game m ()
 handleJoin _ = return ()
@@ -98,15 +96,15 @@ setTileStatus tile status = modify' $ \game ->
 grabFromPool :: MonadThrow m => Game m (Maybe Tile)
 grabFromPool = do
   pool <- gets $ Map.keys . Map.filter (== Pool) . gameTiles
-  (n, g) <- uniformR (0, length pool - 1) <$> gets gameRNG
+  (n, g) <- gets (uniformR (0, length pool - 1) . gameRNG)
   if null pool
     then pure Nothing
     else modify' (\game -> game { gameRNG = g })
-         *> pure (Just (pool !! n))
+         $> Just (pool !! n)
 
 playerHasTile :: Monad m => PlayerId -> Tile -> Game m Bool
 playerHasTile pid tile = gets
-  $ maybe False (== Hand pid)
+  $ (Just (Hand pid) ==)
   . Map.lookup tile
   . gameTiles
 
@@ -123,7 +121,7 @@ getStock :: Monad m => PlayerId -> Company -> Game m Int
 getStock pid com = do
   stocks <- gets gameStocks
   return $
-    maybe 0 id (Map.lookup pid stocks >>= Map.lookup com)
+    fromMaybe 0 (Map.lookup pid stocks >>= Map.lookup com)
 
 setStock :: Monad m => PlayerId -> Company -> Int -> Game m ()
 setStock pid com qty = do

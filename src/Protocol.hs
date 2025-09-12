@@ -16,6 +16,7 @@ import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Builder          as B
 import           Data.Conduit.Attoparsec
+import           Data.Functor
 import           Data.List                        (intersperse)
 import           Data.Maybe                       (maybeToList)
 
@@ -66,13 +67,13 @@ parsePlayerId = label "parsePlayerId" decimal
 parseCompany :: Parser Company
 parseCompany =
   label "parseCompany"
-  $   string "Triangle"  *> pure Triangle
-  <|> string "Love"      *> pure Love
-  <|> string "Armenian"  *> pure Armenian
-  <|> string "Fiesta"    *> pure Fiesta
-  <|> string "Wonder"    *> pure Wonder
-  <|> string "Century"   *> pure Century
-  <|> string "Important" *> pure Important
+  $   string "Triangle"  $> Triangle
+  <|> string "Love"      $> Love
+  <|> string "Armenian"  $> Armenian
+  <|> string "Fiesta"    $> Fiesta
+  <|> string "Wonder"    $> Wonder
+  <|> string "Century"   $> Century
+  <|> string "Important" $> Important
 
 parseEvent :: Parser Event
 parseEvent = label "parseEvent" $ do
@@ -88,8 +89,7 @@ parseEvent = label "parseEvent" $ do
     <|> parseMoney pid
     <|> parseStock pid
   where
-    parseJoin pid = string "JOIN"
-      *> pure (JoinEvent pid)
+    parseJoin pid = string "JOIN" $> JoinEvent pid
     parseDraw pid = DrawEvent pid
       <$> (string "DRAW" *> optional (space *> parseTile))
     parsePlay pid = PlayEvent pid
@@ -126,7 +126,7 @@ renderEvent event =
                                     [renderTile c]
     MarkerEvent  pid comp mc     -> renderEvent' pid "MARKER"
                                     $ [renderCompany comp]
-                                    <> (maybeToList $ renderTile <$> mc)
+                                    <> maybeToList (renderTile <$> mc)
     StockEvent   pid comp amount -> renderEvent' pid "STOCK"
                                     [ renderCompany comp
                                     , B.intDec amount
