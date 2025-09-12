@@ -1,12 +1,44 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RecordWildCards           #-}
-module Types where
+
+module Types
+  ( -- * Basic Game Types
+    Money
+  , PlayerId
+  , newPlayerId
+  , Tile
+  , TileLoc(..)
+  , Company(..)
+  , Stocks
+  , GameState(..)
+  , defaultGame
+  , newGameState
+  , Game
+
+    -- * Events
+  , Event(..)
+  , eventSource
+
+    -- * Exceptions
+  , GameError(..)
+  , RequireException(..)
+
+    -- * Server Types
+  , MessageQueue
+  , Server(..)
+  , newServer
+  , sinkTQueue
+  , sourceTQueue
+  , sinkHistory
+
+    -- * Useful Conduits
+  , eitherC
+  ) where
 
 import           Conduit
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad.State
-import           Data.ByteString         (ByteString)
 import           Data.Conduit.Attoparsec
 import           Data.Map.Strict         (Map)
 import qualified Data.Map.Strict         as Map

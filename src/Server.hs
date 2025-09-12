@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 
-module Server where
+module Server
+  ( runServer
+  ) where
 
 import           Conduit
 import           Control.Concurrent.Async

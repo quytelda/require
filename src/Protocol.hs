@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Protocol where
+module Protocol
+  ( handshake
+  , parseEvents
+  , renderEvents
+  , renderErrors
+  ) where
 
 import           Conduit
 import           Control.Applicative
