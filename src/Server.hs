@@ -125,7 +125,15 @@ streamIncoming server pid app sendQueue =
   .| parseEvents pid
   .| eitherC handleErrors (sinkTQueue server.recvQueue)
   where
-    handleErrors = mapC (Left . ParseException) .| sinkTQueue sendQueue
+    handleErrors =
+      iterMC (\err -> liftIO $ errBuilder
+                      $ "error (PID "
+                      <> B.intDec pid
+                      <> "): "
+                      <> B.string8 (displayException err)
+             )
+      .| mapC (Left . ParseException)
+      .| sinkTQueue sendQueue
 
 streamOutgoing
   :: MonadIO m
