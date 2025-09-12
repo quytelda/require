@@ -85,22 +85,44 @@ parseEvent pid = label "parseEvent" $
   <|> parseMoney
   <|> parseStock
   where
-    parseJoin = string "JOIN" $> JoinEvent pid
-    parseDraw = DrawEvent pid
-      <$> (string "DRAW" *> optional (space *> parseTile))
-    parsePlay = PlayEvent pid
-      <$> (string "PLAY" *> space *> parseTile)
-    parseDiscard = DiscardEvent pid
-      <$> (string "DISCARD" *> space *> parseTile)
-    parseReturn = ReturnEvent pid
-      <$> (string "RETURN" *> space *> parseTile)
-    parseMarker = MarkerEvent pid
-      <$> (string "MARKER" *> space *> parseCompany)
+    parseJoin =
+      JoinEvent pid
+      <$ string "JOIN"
+    parseDraw =
+      DrawEvent pid
+      <$ string "DRAW"
       <*> optional (space *> parseTile)
-    parseMoney = MoneyEvent pid
-      <$> (string "MONEY" *> space *> signed decimal)
-    parseStock = StockEvent pid
-      <$> (string "STOCK" *> space *> parseCompany)
+    parsePlay =
+      PlayEvent pid
+      <$ string "PLAY"
+      <* space
+      <*> parseTile
+    parseDiscard =
+      DiscardEvent pid
+      <$ string "DISCARD"
+      <* space
+      <*> parseTile
+    parseReturn =
+      ReturnEvent pid
+      <$ string "RETURN"
+      <* space
+      <*> parseTile
+    parseMarker =
+      MarkerEvent pid
+      <$ string "MARKER"
+      <* space
+      <*> parseCompany
+      <*> optional (space *> parseTile)
+    parseMoney =
+      MoneyEvent pid
+      <$ string "MONEY"
+      <* space
+      <*> signed decimal
+    parseStock =
+      StockEvent pid
+      <$ string "STOCK"
+      <* space
+      <*> parseCompany
       <* space
       <*> signed decimal
 
