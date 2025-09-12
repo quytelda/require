@@ -1,4 +1,6 @@
 module Main (main) where
 
+import           Server
+
 main :: IO ()
-main = putStrLn "Not implemented"
+main = runServer
