@@ -188,14 +188,16 @@ toStrictByteString = BS.toStrict . B.toLazyByteString
 
 printEvent :: MonadIO m => Event -> m ()
 printEvent event = liftIO
-  $ putBuilder
-  $ "> "
+  $  putBuilder
+  $  "[EVENT] "
   <> renderEvent event
 
 printError :: MonadIO m => RequireException -> m ()
-printError err = liftIO
-  $ errBuilder
-  $ "error [PID "
-  <> B.intDec (errorSource err)
-  <> "]: "
+printError (ParseException pid err) = liftIO
+  $  errBuilder
+  $  "[PID " <> B.intDec pid <> "] "
   <> B.string8 (displayException err)
+printError (EventException event err) = liftIO
+  $  errBuilder
+  $  "[EVENT] " <> renderEvent event <> B.char8 '\n'
+  <> "=> " <> B.string8 (displayException err)

@@ -57,19 +57,17 @@ serveClient :: Server -> AppData -> IO ()
 serveClient server app = do
   -- A new client has just connected.
   client <- newClient server app
+  let context = "[PID " <> B.intDec client.playerId <> "] "
   putBuilder
-    $ "New connection from "
+    $  context
+    <> "new connection from "
     <> show8 (appSockAddr app)
-    <> ", PID: " <> B.intDec client.playerId
 
   -- Wait for the client to initiate a handshake.
-  runConduit
-    $ appSource app
-    .| handshake client.playerId
-    .| appSink app
-  putBuilder
-    $ "Handshake completed, PID: "
-    <> B.intDec client.playerId
+  onException
+    (runConduit $ appSource app .| handshake client.playerId .| appSink app)
+    (errBuilder $ context <> "handshake failed")
+  putBuilder $ context <> "handshake succeeded"
 
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
@@ -85,9 +83,7 @@ serveClient server app = do
           (runConduit $ streamIncoming server client)
           (runConduit $ streamOutgoing client history)
     )
-    (do putBuilder
-          $ "Client disconnected, PID: "
-          <> B.intDec client.playerId
+    (do putBuilder $ context <> "client disconnected"
         atomically $ modifyTVar' server.clients $ Map.delete client.playerId
     )
 
