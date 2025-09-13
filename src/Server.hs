@@ -56,21 +56,20 @@ gameConduit = mapMC $ \event ->
 serveClient :: Server -> AppData -> IO ()
 serveClient server app = do
   -- A new client has just connected.
-  pid <- newPlayerId server
-  sendQueue <- newTQueueIO
+  client <- newClient server app
   putBuilder
     $ "New connection from "
     <> show8 (appSockAddr app)
-    <> ", PID: " <> B.intDec pid
+    <> ", PID: " <> B.intDec client.playerId
 
   -- Wait for the client to initiate a handshake.
   runConduit
     $ appSource app
-    .| handshake pid
+    .| handshake client.playerId
     .| appSink app
   putBuilder
     $ "Handshake completed, PID: "
-    <> B.intDec pid
+    <> B.intDec client.playerId
 
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
@@ -78,48 +77,45 @@ serveClient server app = do
   finally
     (do history <- atomically
           $  readTVar server.eventHistory
-          <* modifyTVar' server.clients (Map.insert pid sendQueue)
+          <* modifyTVar' server.clients (Map.insert client.playerId client.sendQueue)
 
         -- Stream incoming events to the global incoming queue while
         -- streaming outgoing events from the client's outgoing queue.
         race_
-          (runConduit $ streamIncoming server pid app sendQueue)
-          (runConduit $ streamOutgoing app sendQueue history)
+          (runConduit $ streamIncoming server client)
+          (runConduit $ streamOutgoing client history)
     )
     (do putBuilder
           $ "Client disconnected, PID: "
-          <> B.intDec pid
-        atomically $ modifyTVar' server.clients $ Map.delete pid
+          <> B.intDec client.playerId
+        atomically $ modifyTVar' server.clients $ Map.delete client.playerId
     )
 
 streamIncoming
   :: MonadIO m
   => Server
-  -> PlayerId
-  -> AppData
-  -> MessageQueue
+  -> Client
   -> ConduitT i o m ()
-streamIncoming server pid app sendQueue =
-  appSource app
-  .| parseEvents pid
+streamIncoming server client =
+  appSource client.appData
+  .| parseEvents client.playerId
   .| eitherC handleErrors (sinkTQueue server.recvQueue)
   where
     handleErrors =
-      mapC (ParseException pid)
+      mapC (ParseException client.playerId)
       .| iterMC printError
       .| mapC Left
-      .| sinkTQueue sendQueue
+      .| sinkTQueue client.sendQueue
 
 streamOutgoing
   :: MonadIO m
-  => AppData
-  -> MessageQueue
+  => Client
   -> Seq Event
   -> ConduitT i o m ()
-streamOutgoing app sendQueue history =
-  (yieldEvents history >> sourceTQueue sendQueue)
+streamOutgoing client history =
+  (yieldEvents history >> sourceTQueue client.sendQueue)
   .| eitherC renderErrors renderEvents
-  .| appSink app
+  .| appSink client.appData
   where
     yieldEvents = yieldMany . fmap Right
 

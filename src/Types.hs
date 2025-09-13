@@ -29,6 +29,8 @@ module Types
   , MessageQueue
   , Server(..)
   , newServer
+  , Client(..)
+  , newClient
   , sinkTQueue
   , sourceTQueue
   , sinkHistory
@@ -48,6 +50,7 @@ import           Control.Exception
 import           Control.Monad.State
 import qualified Data.ByteString.Builder as B
 import           Data.Conduit.Attoparsec
+import           Data.Conduit.Network
 import           Data.Map.Strict         (Map)
 import qualified Data.Map.Strict         as Map
 import           Data.Sequence           (Seq, (|>))
@@ -216,6 +219,18 @@ newPlayerId :: Server -> IO PlayerId
 newPlayerId server = atomically $ do
   modifyTVar' (uidSource server) (+1)
   readTVar (uidSource server)
+
+data Client = Client
+  { appData   :: AppData
+  , playerId  :: PlayerId
+  , sendQueue :: MessageQueue
+  }
+
+newClient :: Server -> AppData -> IO Client
+newClient server app =
+  Client app
+  <$> newPlayerId server
+  <*> newTQueueIO
 
 sinkTQueue :: MonadIO m => TQueue a -> ConduitT a o m ()
 sinkTQueue queue = awaitForever $ liftIO . atomically . writeTQueue queue
