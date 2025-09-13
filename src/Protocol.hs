@@ -7,6 +7,8 @@ module Protocol
   , renderErrors
   , renderEvent
   , renderError
+  , printEvent
+  , printError
   ) where
 
 import           Conduit
@@ -183,3 +185,19 @@ renderEventException event err =
 
 toStrictByteString :: B.Builder -> ByteString
 toStrictByteString = BS.toStrict . B.toLazyByteString
+
+printEvent :: MonadIO m => Event -> m ()
+printEvent event = liftIO
+  $ putBuilder
+  $ "> "
+  <> renderEvent event
+  <> B.char8 '\n'
+
+printError :: MonadIO m => RequireException -> m ()
+printError err = liftIO
+  $ errBuilder
+  $ "error [PID "
+  <> B.intDec (errorSource err)
+  <> "]: "
+  <> B.string8 (displayException err)
+  <> B.char8 '\n'
