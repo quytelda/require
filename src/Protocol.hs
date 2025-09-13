@@ -162,7 +162,7 @@ renderTile :: Tile -> B.Builder
 renderTile (col, row) = B.intDec col <> B.char8 '-' <> B.char8 row
 
 renderError :: RequireException -> B.Builder
-renderError (ParseException err)       = renderParseError err
+renderError (ParseException _ err)   = renderParseError err
 renderError (EventException event err) = renderEventException event err
 
 renderParseError :: ParseError -> B.Builder

@@ -1,14 +1,14 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 
-module Server
-  ( runServer
-  ) where
+module Server where
 
 import           Conduit
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad.Catch
+import           Data.Bifunctor
 import           Data.ByteString.Builder  as B
 import           Data.Conduit.Network
 import qualified Data.Map.Strict          as Map
@@ -28,51 +28,50 @@ runServer = do
 -- | This thread handles the main game loop and runs for as long as
 -- the server is alive.
 runGameThread :: Server -> IO ()
-runGameThread server = runConduit
-  $ sourceTQueue server.recvQueue
-  .| gameLoop server
-  .| sink
+runGameThread server = do
+  game <- newGameState
+  runConduit
+    $ sourceTQueue server.recvQueue
+    .| evalStateLC game gameConduit
+    .| eitherC (iterMC printError .| errorSink) (iterMC printEvent .| eventSink)
   where
-    sink = getZipSink
+    errorSink = awaitForever $ \err -> liftIO $ atomically
+      $ Map.lookup (errorSource err)
+      <$> readTVar (server.clients)
+      >>= \case Just queue -> writeTQueue queue (Left err)
+                Nothing    -> throwM $ NoClientWithPid (errorSource err)
+    eventSink = getZipSink
       $  ZipSink (broadcast server)
       *> ZipSink (sinkHistory server)
 
-gameLoop
-  :: (MonadIO m, MonadCatch m)
-  => Server
-  -> ConduitT Event Event m ()
-gameLoop server = do
-  game <- newGameState
-  evalStateLC game $ awaitForever $ \event -> do
-    result <- lift $ try $ handleEvent event
-    case result of
-      Right event' -> do yield event'
-                         liftIO $ putBuilder
-                           $ "> "
-                           <> renderEvent event'
-                           <> B.char8 '\n'
-      Left  err    -> liftIO $ handleError event err
-  where
-    handleError event err = do
-      errBuilder
-        $ "> "
-        <> renderEvent event
-        <> B.char8 '\n'
-        <> "error: "
-        <> B.string8 (displayException err)
-        <> B.char8 '\n'
-      let pid = eventSource event
-      mqueue <- Map.lookup pid <$> readTVarIO server.clients
-      case mqueue of
-        Just queue -> atomically
-          $ writeTQueue queue
-          $ Left
-          $ EventException event err
-        Nothing ->
-          errBuilder
-          $ "Warning: unable to deliver error to player #"
-          <> B.intDec pid
-          <> B.char8 '\n'
+gameConduit
+  :: MonadCatch m
+  => ConduitT Event (Either RequireException Event) (Game m) ()
+gameConduit = mapMC $ \event ->
+  first (EventException event)
+  <$> (try . handleEvent) event
+
+printEvent
+  :: MonadIO m
+  => Event
+  -> m ()
+printEvent event = liftIO
+  $ putBuilder
+  $ "> "
+  <> renderEvent event
+  <> B.char8 '\n'
+
+printError
+  :: MonadIO m
+  => RequireException
+  -> m ()
+printError err = liftIO
+  $ errBuilder
+  $ "error [PID "
+  <> B.intDec (errorSource err)
+  <> "]: "
+  <> B.string8 (displayException err)
+  <> B.char8 '\n'
 
 -- | The life-cycle thread of a client.
 serveClient :: Server -> AppData -> IO ()
@@ -130,14 +129,9 @@ streamIncoming server pid app sendQueue =
   .| eitherC handleErrors (sinkTQueue server.recvQueue)
   where
     handleErrors =
-      iterMC (\err -> liftIO $ errBuilder
-                      $ "error (PID "
-                      <> B.intDec pid
-                      <> "): "
-                      <> B.string8 (displayException err)
-                      <> B.char8 '\n'
-             )
-      .| mapC (Left . ParseException)
+      mapC (ParseException pid)
+      .| iterMC printError
+      .| mapC Left
       .| sinkTQueue sendQueue
 
 streamOutgoing

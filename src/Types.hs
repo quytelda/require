@@ -22,6 +22,8 @@ module Types
     -- * Exceptions
   , GameError(..)
   , RequireException(..)
+  , ServerException(..)
+  , errorSource
 
     -- * Server Types
   , MessageQueue
@@ -172,11 +174,21 @@ instance Exception GameError where
 -- | Exceptions that can be safely handled by the server without
 -- crashing any threads.
 data RequireException
-  = ParseException ParseError
+  = ParseException PlayerId ParseError
   | EventException Event GameError
   deriving (Show)
 
 instance Exception RequireException
+
+errorSource :: RequireException -> PlayerId
+errorSource (ParseException pid _)   = pid
+errorSource (EventException event _) = eventSource event
+
+data ServerException
+  = NoClientWithPid PlayerId
+  deriving (Eq, Show)
+
+instance Exception ServerException
 
 --------------------------------------------------------------------------------
 -- Server Types
