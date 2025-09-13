@@ -7,6 +7,7 @@ module Server where
 import           Conduit
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
+import           Control.Monad
 import           Control.Monad.Catch
 import           Data.Bifunctor
 import           Data.ByteString.Builder  as B
@@ -129,8 +130,7 @@ streamOutgoing app sendQueue history =
 broadcast
   :: MonadIO m
   => Server
-  -> ConduitT Event Void m ()
-broadcast server = awaitForever $ \x -> yield (Right x) .| sendAll
-  where
-    sendAll = liftIO (readTVarIO server.clients)
-              >>= sequenceSinks . fmap sinkTQueue
+  -> ConduitT Event o m ()
+broadcast server = awaitForever $ \event -> liftIO $ do
+  clientMap <- readTVarIO server.clients
+  forM_ clientMap $ atomically . flip writeTQueue (Right event)
