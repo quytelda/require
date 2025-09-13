@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 
@@ -36,11 +35,12 @@ runGameThread server = do
     .| evalStateLC game gameConduit
     .| eitherC (iterMC printError .| errorSink) (iterMC printEvent .| eventSink)
   where
-    errorSink = awaitForever $ \err -> liftIO $ atomically
-      $ Map.lookup (errorSource err)
-      <$> readTVar (server.clients)
-      >>= \case Just queue -> writeTQueue queue (Left err)
-                Nothing    -> throwM $ NoClientWithPid (errorSource err)
+    errorSink = awaitForever $ \err -> liftIO $ do
+      let pid = errorSource err
+      clientMap <- readTVarIO (server.clients)
+      case Map.lookup pid clientMap of
+           Just queue -> atomically $ writeTQueue queue (Left err)
+           Nothing    -> errBuilder $ "warning: PID " <> B.intDec pid <> " has no outgoing queue"
     eventSink = getZipSink
       $  ZipSink (broadcast server)
       *> ZipSink (sinkHistory server)
