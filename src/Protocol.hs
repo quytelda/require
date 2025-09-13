@@ -191,7 +191,6 @@ printEvent event = liftIO
   $ putBuilder
   $ "> "
   <> renderEvent event
-  <> B.char8 '\n'
 
 printError :: MonadIO m => RequireException -> m ()
 printError err = liftIO
@@ -200,4 +199,3 @@ printError err = liftIO
   <> B.intDec (errorSource err)
   <> "]: "
   <> B.string8 (displayException err)
-  <> B.char8 '\n'

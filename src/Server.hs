@@ -62,7 +62,6 @@ serveClient server app = do
     $ "New connection from "
     <> show8 (appSockAddr app)
     <> ", PID: " <> B.intDec pid
-    <> B.char8 '\n'
 
   -- Wait for the client to initiate a handshake.
   runConduit
@@ -72,7 +71,6 @@ serveClient server app = do
   putBuilder
     $ "Handshake completed, PID: "
     <> B.intDec pid
-    <> B.char8 '\n'
 
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
@@ -91,7 +89,6 @@ serveClient server app = do
     (do putBuilder
           $ "Client disconnected, PID: "
           <> B.intDec pid
-          <> B.char8 '\n'
         atomically $ modifyTVar' server.clients $ Map.delete pid
     )
 

@@ -252,10 +252,10 @@ rightsC = awaitForever $ either (const $ pure ()) yield
 -- Utility Functions
 
 putBuilder :: B.Builder -> IO ()
-putBuilder = B.hPutBuilder stdout
+putBuilder = B.hPutBuilder stdout . (<> B.char8 '\n')
 
 errBuilder :: B.Builder -> IO ()
-errBuilder = B.hPutBuilder stderr
+errBuilder = B.hPutBuilder stderr . (<> B.char8 '\n')
 
 show8 :: Show a => a -> B.Builder
 show8 = B.string8 . show
