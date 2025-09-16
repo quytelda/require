@@ -78,67 +78,55 @@ parseTile = label "parseTile" $
   <*> letter_ascii
 
 parseCompany :: Parser Company
-parseCompany =
-  label "parseCompany"
-  $   string "Triangle"  $> Triangle
-  <|> string "Love"      $> Love
-  <|> string "Armenian"  $> Armenian
-  <|> string "Fiesta"    $> Fiesta
-  <|> string "Wonder"    $> Wonder
-  <|> string "Century"   $> Century
-  <|> string "Important" $> Important
+parseCompany = label "parseCompany" $ do
+  companyName <- takeWhile1 isAlpha_ascii
+  case companyName of
+    "Triangle"  -> pure Triangle
+    "Love"      -> pure Love
+    "Armenian"  -> pure Armenian
+    "Fiesta"    -> pure Fiesta
+    "Wonder"    -> pure Wonder
+    "Century"   -> pure Century
+    "Important" -> pure Important
+    _           -> fail "companyName"
 
 parseEvent :: PlayerId -> Parser Event
-parseEvent pid = label "parseEvent" $
-  parseJoin
-  <|> parseDraw
-  <|> parsePlay
-  <|> parseDiscard
-  <|> parseReturn
-  <|> parseMarker
-  <|> parseMoney
-  <|> parseStock
-  where
-    parseJoin =
-      JoinEvent pid
-      <$ string "JOIN"
-    parseDraw =
+parseEvent pid = label "parseEvent" $ do
+  eventType <- takeWhile1 isAlpha_ascii
+  case eventType of
+    "JOIN" ->
+      return $ JoinEvent pid
+    "DRAW" ->
       DrawEvent pid
-      <$ string "DRAW"
-      <*> optional (space *> parseTile)
-    parsePlay =
+      <$> optional (space *> parseTile)
+    "PLAY" ->
       PlayEvent pid
-      <$ string "PLAY"
-      <* space
+      <$  space
       <*> parseTile
-    parseDiscard =
+    "DISCARD" ->
       DiscardEvent pid
-      <$ string "DISCARD"
-      <* space
+      <$  space
       <*> parseTile
-    parseReturn =
+    "RETURN" ->
       ReturnEvent pid
-      <$ string "RETURN"
-      <* space
+      <$  space
       <*> parseTile
-    parseMarker =
+    "MARKER" ->
       MarkerEvent pid
-      <$ string "MARKER"
-      <* space
+      <$  space
       <*> parseCompany
       <*> optional (space *> parseTile)
-    parseMoney =
+    "MONEY" ->
       MoneyEvent pid
-      <$ string "MONEY"
-      <* space
+      <$  space
       <*> signed decimal
-    parseStock =
+    "STOCK" ->
       StockEvent pid
-      <$ string "STOCK"
-      <* space
+      <$  space
       <*> parseCompany
-      <* space
+      <*  space
       <*> signed decimal
+    _ -> fail "eventType"
 
 --------------------------------------------------------------------------------
 -- Rendering
