@@ -71,12 +71,13 @@ createClient server app mpid = do
 -- | The life-cycle thread of a client.
 serveClient :: Server -> AppData -> IO ()
 serveClient server app = do
-  putBuilder
-    $ "New connection from "
-    <> show8 (appSockAddr app)
+  let clientAddr = show8 (appSockAddr app)
+  putBuilder $ "New connection from " <> clientAddr
 
   -- Wait for the client to iniate the handshake.
-  mRequestedPid <- runConduit (appSource app .| readGreeting)
+  mRequestedPid <- onException
+    (runConduit $ appSource app .| readGreeting)
+    (errBuilder $ "Invalid greeting from " <> clientAddr)
 
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
@@ -89,7 +90,7 @@ serveClient server app = do
   putBuilder
     $ context
     <> "established connection with "
-    <> show8 (appSockAddr app)
+    <> clientAddr
 
   finally
     (do runConduit $ sendGreeting client.playerId .| appSink app
