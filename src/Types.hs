@@ -251,10 +251,10 @@ eitherC left right =
   <*> ZipConduit (rightsC .| right)
 
 leftsC :: Monad m => ConduitT (Either a b) a m ()
-leftsC = awaitForever $ either yield (const $ pure ())
+leftsC = awaitForever $ either yield (const mempty)
 
 rightsC :: Monad m => ConduitT (Either a b) b m ()
-rightsC = awaitForever $ either (const $ pure ()) yield
+rightsC = awaitForever $ either (const mempty) yield
 
 --------------------------------------------------------------------------------
 -- Utility Functions
