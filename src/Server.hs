@@ -52,30 +52,47 @@ gameConduit = mapMC $ \event ->
   first (EventException event)
   <$> (try . handleEvent) event
 
+createClient :: Server -> AppData -> Maybe PlayerId -> STM Client
+createClient server app mpid = do
+  maxUsedPid <- readTVar server.uidSource
+  clientMap  <- readTVar server.clients
+  pid <- case mpid of
+    Nothing -> newPlayerId server
+    Just requestedPid ->
+      if requestedPid <= 0
+         || requestedPid > maxUsedPid
+         || Map.member requestedPid clientMap
+      then throwM $ PidUnavailable requestedPid
+      else return requestedPid
+  queue <- newTQueue
+  writeTVar server.clients (Map.insert pid queue clientMap)
+  return $ Client app pid queue
+
 -- | The life-cycle thread of a client.
 serveClient :: Server -> AppData -> IO ()
 serveClient server app = do
-  -- A new client has just connected.
-  client <- newClient server app
-  let context = "[PID " <> B.intDec client.playerId <> "] "
   putBuilder
-    $  context
-    <> "new connection from "
+    $ "New connection from "
     <> show8 (appSockAddr app)
 
-  -- Wait for the client to initiate a handshake.
-  onException
-    (runConduit $ appSource app .| handshake client.playerId .| appSink app)
-    (errBuilder $ context <> "handshake failed")
-  putBuilder $ context <> "handshake succeeded"
+  -- Wait for the client to iniate the handshake.
+  mRequestedPid <- runConduit (appSource app .| readGreeting)
 
   -- Register the connection in the client table. Past this point, we
   -- need to be concerned about cleaning up resources if the client
   -- exits.
+  (client, history) <- atomically $ (,)
+    <$> createClient server app mRequestedPid
+    <*> readTVar server.eventHistory
+
+  let context = "[PID " <> B.intDec client.playerId <> "] "
+  putBuilder
+    $ context
+    <> "established connection with "
+    <> show8 (appSockAddr app)
+
   finally
-    (do history <- atomically
-          $  readTVar server.eventHistory
-          <* modifyTVar' server.clients (Map.insert client.playerId client.sendQueue)
+    (do runConduit $ sendGreeting client.playerId .| appSink app
 
         -- Stream incoming events to the global incoming queue while
         -- streaming outgoing events from the client's outgoing queue.

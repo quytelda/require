@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Protocol
-  ( handshake
+  ( readGreeting
+  , sendGreeting
   , parseEvents
   , renderEvents
   , renderErrors
@@ -13,7 +14,6 @@ module Protocol
 
 import           Conduit
 import           Control.Applicative
-import           Control.Monad
 import           Control.Monad.Catch
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString                  (ByteString)
@@ -29,13 +29,19 @@ import           Types
 --------------------------------------------------------------------------------
 -- Conduits
 
-handshake
+readGreeting
+  :: MonadThrow m
+  => ConduitT ByteString o m (Maybe PlayerId)
+readGreeting = lineAsciiC $ sinkParser parseHello
+
+sendGreeting
   :: MonadThrow m
   => PlayerId
-  -> ConduitT ByteString ByteString m ()
-handshake pid = do
-  lineAsciiC $ sinkParser $ void $ string "HELLO"
-  sourceLazy $ B.toLazyByteString $ "HELLO " <> B.intDec pid <> "\n"
+  -> ConduitT i ByteString m ()
+sendGreeting pid =
+  sourceLazy
+  $ B.toLazyByteString
+  $ "HELLO " <> B.intDec pid <> "\n"
 
 parseEvents
   :: Monad m
@@ -59,6 +65,10 @@ renderErrors = awaitForever $ yield . toStrictByteString . (<> "\n") . renderErr
 
 label :: String -> Parser a -> Parser a
 label = flip (<?>)
+
+parseHello :: Parser (Maybe PlayerId)
+parseHello = label "parseHello" $
+  string "HELLO" *> optional (space *> decimal)
 
 parseTile :: Parser Tile
 parseTile = label "parseTile" $

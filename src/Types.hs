@@ -30,7 +30,6 @@ module Types
   , Server(..)
   , newServer
   , Client(..)
-  , newClient
   , sinkTQueue
   , sourceTQueue
   , sinkHistory
@@ -188,7 +187,7 @@ errorSource (ParseException pid _)   = pid
 errorSource (EventException event _) = eventSource event
 
 data ServerException
-  = NoClientWithPid PlayerId
+  = PidUnavailable PlayerId
   deriving (Eq, Show)
 
 instance Exception ServerException
@@ -215,8 +214,8 @@ newServer =
 
 -- | Generate a new 'PlayerId' guaranteed to be unique for this
 -- 'Server'.
-newPlayerId :: Server -> IO PlayerId
-newPlayerId server = atomically $ do
+newPlayerId :: Server -> STM PlayerId
+newPlayerId server = do
   modifyTVar' (uidSource server) (+1)
   readTVar (uidSource server)
 
@@ -225,12 +224,6 @@ data Client = Client
   , playerId  :: PlayerId
   , sendQueue :: MessageQueue
   }
-
-newClient :: Server -> AppData -> IO Client
-newClient server app =
-  Client app
-  <$> newPlayerId server
-  <*> newTQueueIO
 
 sinkTQueue :: MonadIO m => TQueue a -> ConduitT a o m ()
 sinkTQueue queue = awaitForever $ liftIO . atomically . writeTQueue queue
