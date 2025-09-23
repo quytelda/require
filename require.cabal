@@ -37,7 +37,10 @@ library
       aeson >=2.1.2.1 && <3
     , base >=4.7 && <5
     , containers >=0.6
+    , mtl >=2.2.2 && <3
+    , random >=1.2.1 && <2
     , servant >=0.19.1 && <0.21
+    , stm >=2.5.1 && <2.6
     , text >=1.2.5 && <3
   default-language: Haskell2010
 
@@ -54,8 +57,11 @@ executable require-exe
       aeson >=2.1.2.1 && <3
     , base >=4.7 && <5
     , containers >=0.6
+    , mtl >=2.2.2 && <3
+    , random >=1.2.1 && <2
     , require
     , servant >=0.19.1 && <0.21
+    , stm >=2.5.1 && <2.6
     , text >=1.2.5 && <3
   default-language: Haskell2010
 
@@ -73,7 +79,10 @@ test-suite require-test
       aeson >=2.1.2.1 && <3
     , base >=4.7 && <5
     , containers >=0.6
+    , mtl >=2.2.2 && <3
+    , random >=1.2.1 && <2
     , require
     , servant >=0.19.1 && <0.21
+    , stm >=2.5.1 && <2.6
     , text >=1.2.5 && <3
   default-language: Haskell2010
