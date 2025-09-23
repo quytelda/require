@@ -24,6 +24,8 @@ source-repository head
   location: https://github.com/quytelda/require
 
 library
+  exposed-modules:
+      Types
   other-modules:
       Paths_require
   autogen-modules:
