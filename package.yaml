@@ -20,7 +20,9 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/quytelda/require#readme>
 
 dependencies:
+- aeson >= 2.1.2.1 && < 3
 - base >= 4.7 && < 5
+- servant >= 0.19.1 && < 0.21
 
 ghc-options:
 - -Wall

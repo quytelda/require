@@ -32,7 +32,9 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+      aeson >=2.1.2.1 && <3
+    , base >=4.7 && <5
+    , servant >=0.19.1 && <0.21
   default-language: Haskell2010
 
 executable require-exe
@@ -45,8 +47,10 @@ executable require-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson >=2.1.2.1 && <3
+    , base >=4.7 && <5
     , require
+    , servant >=0.19.1 && <0.21
   default-language: Haskell2010
 
 test-suite require-test
@@ -60,6 +64,8 @@ test-suite require-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson >=2.1.2.1 && <3
+    , base >=4.7 && <5
     , require
+    , servant >=0.19.1 && <0.21
   default-language: Haskell2010
