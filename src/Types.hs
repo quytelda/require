@@ -1,16 +1,18 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Types where
 
 import           Control.Monad
 import           Control.Monad.State
 import           Data.Aeson
-import           Data.Map.Strict        (Map)
-import qualified Data.Map.Strict        as Map
-import           Data.Text              (Text)
-import qualified Data.Text              as T
-import qualified Data.Text.Read         as Read
+import           Data.Aeson.Types
+import           Data.Map.Strict     (Map)
+import qualified Data.Map.Strict     as Map
+import           Data.Text           (Text)
+import qualified Data.Text           as T
+import qualified Data.Text.Read      as Read
 import           GHC.Generics
 import           System.Random
 
@@ -131,3 +133,70 @@ eventSource (ReturnEvent  pid _)   = pid
 eventSource (MarkerEvent  pid _ _) = pid
 eventSource (MoneyEvent   pid _)   = pid
 eventSource (StockEvent   pid _ _) = pid
+
+instance ToJSON Event where
+  toJSON (JoinEvent pid) =
+    object [ "type" .= String "join"
+           , "source" .= pid
+           ]
+  toJSON (DrawEvent pid mtile) =
+    object [ "type" .= String "draw"
+           , "source" .= pid
+           , "tile" .= mtile
+           ]
+  toJSON (PlayEvent pid tile) =
+    object [ "type" .= String "play"
+           , "source" .= pid
+           , "tile" .= tile
+           ]
+  toJSON (DiscardEvent pid tile) =
+    object [ "type" .= String "discard"
+           , "source" .= pid
+           , "tile" .= tile
+           ]
+  toJSON (ReturnEvent pid tile) =
+    object [ "type" .= String "return"
+           , "source" .= pid
+           , "tile" .= tile
+           ]
+  toJSON (MarkerEvent pid com mtile) =
+    object [ "type" .= String "marker"
+           , "source" .= pid
+           , "company" .= com
+           , "tile" .= mtile
+           ]
+  toJSON (MoneyEvent pid amount) =
+    object [ "type" .= String "money"
+           , "source" .= pid
+           , "amount" .= amount
+           ]
+  toJSON (StockEvent pid com amount) =
+    object [ "type" .= String "stock"
+           , "source" .= pid
+           , "company" .= com
+           , "amount" .= amount
+           ]
+
+instance FromJSON Event where
+  parseJSON = withObject "Event" $ \obj -> do
+    evType <- obj .: "type" :: Parser Text
+    pid <- obj .: "source" :: Parser PlayerId
+    case evType of
+      "join"    -> return $ JoinEvent pid
+      "draw"    -> DrawEvent pid
+                   <$> obj .:? "tile"
+      "play"    -> PlayEvent pid
+                   <$> obj .: "tile"
+      "discard" -> DiscardEvent pid
+                   <$> obj .: "tile"
+      "return"  -> ReturnEvent pid
+                   <$> obj .: "tile"
+      "marker"  -> MarkerEvent pid
+                   <$> obj .: "company"
+                   <*> obj .:? "tile"
+      "money"   -> MoneyEvent pid
+                   <$> obj .: "amount"
+      "stock"   -> StockEvent pid
+                   <$> obj .: "company"
+                   <*> obj .: "amount"
+      _         -> fail "invalid event type"
