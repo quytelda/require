@@ -114,7 +114,7 @@ type Game = StateT GameState
 -- must be broadcast to all players.
 data Event
   = JoinEvent    PlayerId -- ^ A new player is joining
-  | DrawEvent    PlayerId (Maybe Tile) -- ^ Draw a tile
+  | DrawEvent    PlayerId -- ^ Draw a tile
   | PlayEvent    PlayerId Tile -- ^ Put a tile on the board
   | DiscardEvent PlayerId Tile -- ^ Discard an unusable tile
   | ReturnEvent  PlayerId Tile -- ^ Return a pile to the pool
@@ -126,7 +126,7 @@ data Event
 -- | From which player did this event originate?
 eventSource :: Event -> PlayerId
 eventSource (JoinEvent    pid)     = pid
-eventSource (DrawEvent    pid _)   = pid
+eventSource (DrawEvent    pid)     = pid
 eventSource (PlayEvent    pid _)   = pid
 eventSource (DiscardEvent pid _)   = pid
 eventSource (ReturnEvent  pid _)   = pid
@@ -139,10 +139,9 @@ instance ToJSON Event where
     object [ "type" .= String "join"
            , "source" .= pid
            ]
-  toJSON (DrawEvent pid mtile) =
+  toJSON (DrawEvent pid) =
     object [ "type" .= String "draw"
            , "source" .= pid
-           , "tile" .= mtile
            ]
   toJSON (PlayEvent pid tile) =
     object [ "type" .= String "play"
@@ -183,8 +182,7 @@ instance FromJSON Event where
     pid <- obj .: "source" :: Parser PlayerId
     case evType of
       "join"    -> return $ JoinEvent pid
-      "draw"    -> DrawEvent pid
-                   <$> obj .:? "tile"
+      "draw"    -> return $ DrawEvent pid
       "play"    -> PlayEvent pid
                    <$> obj .: "tile"
       "discard" -> DiscardEvent pid
