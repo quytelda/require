@@ -1,8 +1,11 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators   #-}
 
 module Server where
 
+import           Control.Concurrent.STM
+import           Control.Monad.IO.Class
 import           Network.Wai.Handler.Warp
 import           Servant
 
@@ -15,13 +18,24 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
                :> Get  '[JSON] [Event]
 
 data ServerState = ServerState
+  { pidSource :: TVar PlayerId
+  }
+
+newServerState :: IO ServerState
+newServerState =
+  ServerState
+  <$> newTVarIO 0
+
+newPlayerId :: ServerState -> STM Int
+newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
 
 -- | Handle the new client registration endpoint.
 --
 -- Generates a new player ID which is unique for this server and
 -- allocates resources for managing this client.
 handleRegister :: ServerState -> Handler PlayerId
-handleRegister = undefined
+handleRegister server = liftIO $ atomically $ do
+  newPlayerId server
 
 -- | Handle the endpoint clients use to send new events.
 --
