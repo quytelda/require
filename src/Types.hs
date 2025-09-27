@@ -81,6 +81,16 @@ data Company
 instance ToJSON Company
 instance FromJSON Company
 
+instance FromHttpApiData Company where
+  parseQueryParam "Triangle"  = Right Triangle
+  parseQueryParam "Love"      = Right Love
+  parseQueryParam "Armenian"  = Right Armenian
+  parseQueryParam "Fiesta"    = Right Fiesta
+  parseQueryParam "Wonder"    = Right Wonder
+  parseQueryParam "Century"   = Right Century
+  parseQueryParam "Important" = Right Important
+  parseQueryParam _           = Left "invalid company name"
+
 -- | Each player and the bank hold a collection of stocks in each
 -- company. This type represents a collection of stock assets.
 type Stocks = Map Company Int
