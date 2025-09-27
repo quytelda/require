@@ -13,11 +13,20 @@ import           Servant
 
 import           Types
 
+type PidParam = QueryParam "pid" PlayerId
+type TileParam = QueryParam "tile" Tile
+type CompanyParam = QueryParam "company" Company
+type AmountParam = QueryParam "amount" Int
+type EventReq = Post '[JSON] NoContent
+
 type RequireAPI = "register" :> Get '[JSON] PlayerId
-  :<|> "event" :> Capture "playerId" Int :> "push"
-               :> ReqBody '[JSON] Event :> Post '[JSON] NoContent
-  :<|> "event" :> Capture "playerId" Int :> "pull"
-               :> Get  '[JSON] [Event]
+  :<|> "events"  :> PidParam :> Get '[JSON] [Event]
+  :<|> "draw"    :> PidParam :> Post '[JSON] Tile
+  :<|> "play"    :> PidParam :> TileParam    :> EventReq
+  :<|> "discard" :> PidParam :> TileParam    :> EventReq
+  :<|> "marker"  :> PidParam :> CompanyParam :> TileParam :> EventReq
+  :<|> "money"   :> PidParam :> AmountParam  :> EventReq
+  :<|> "stock"   :> PidParam :> CompanyParam :> AmountParam :> EventReq
 
 data ServerState = ServerState
   { pidSource  :: TVar PlayerId
@@ -50,23 +59,41 @@ handleRegister server = liftIO $ atomically $ do
   modifyTVar' (sendQueues server) (Map.insert pid queue)
   return pid
 
--- | Handle the endpoint clients use to send new events.
---
--- Receive an event from the client and attempt to apply it to the
--- game state. On success, we publish the event and respond with a
--- simple 200 response; otherwise, we respond with some error.
-handleEventPush :: ServerState -> PlayerId -> Event -> Handler NoContent
-handleEventPush = undefined
+handleDraw :: ServerState -> Maybe PlayerId -> Handler Tile
+handleDraw = undefined
+
+handlePlay :: ServerState -> Maybe PlayerId -> Maybe Tile -> Handler NoContent
+handlePlay = undefined
+
+handleDiscard :: ServerState -> Maybe PlayerId -> Maybe Tile -> Handler NoContent
+handleDiscard = undefined
+
+handleMarker :: ServerState -> Maybe PlayerId -> Maybe Company -> Maybe Tile -> Handler NoContent
+handleMarker = undefined
+
+handleMoney :: ServerState -> Maybe PlayerId -> Maybe Int -> Handler NoContent
+handleMoney = undefined
+
+handleStock :: ServerState -> Maybe PlayerId -> Maybe Company -> Maybe Int -> Handler NoContent
+handleStock = undefined
 
 -- | Handle the endpoint that clients poll for published events.
 --
 -- This endpoint should be long-polled and will respond with a list of
 -- zero or more events as they are available.
-handleEventPull :: ServerState -> PlayerId -> Handler [Event]
-handleEventPull = undefined
+handleEvents :: ServerState -> Maybe PlayerId -> Handler [Event]
+handleEvents = undefined
 
 requireServer :: ServerState -> Server RequireAPI
-requireServer s = handleRegister s :<|> handleEventPush s :<|> handleEventPull s
+requireServer s =
+  handleRegister s
+  :<|> handleEvents s
+  :<|> handleDraw s
+  :<|> handlePlay s
+  :<|> handleDiscard s
+  :<|> handleMarker s
+  :<|> handleMoney s
+  :<|> handleStock s
 
 requireAPI :: Proxy RequireAPI
 requireAPI = Proxy
