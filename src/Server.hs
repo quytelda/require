@@ -33,6 +33,12 @@ newServerState =
 newPlayerId :: ServerState -> STM Int
 newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
 
+-- | Append an 'Event' to the outgoing queue of every registered client.
+broadcast :: ServerState -> Event -> STM ()
+broadcast server event =
+  readTVar (sendQueues server)
+  >>= mapM_ (flip writeTQueue event)
+
 -- | Handle the new client registration endpoint.
 --
 -- Generates a new player ID which is unique for this server and
