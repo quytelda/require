@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Server
       Types
   other-modules:
       Paths_require
