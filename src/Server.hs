@@ -6,6 +6,8 @@ module Server where
 
 import           Control.Concurrent.STM
 import           Control.Monad.IO.Class
+import           Data.Map.Strict          (Map)
+import qualified Data.Map.Strict          as Map
 import           Network.Wai.Handler.Warp
 import           Servant
 
@@ -18,13 +20,15 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
                :> Get  '[JSON] [Event]
 
 data ServerState = ServerState
-  { pidSource :: TVar PlayerId
+  { pidSource  :: TVar PlayerId
+  , sendQueues :: TVar (Map PlayerId (TQueue Event))
   }
 
 newServerState :: IO ServerState
 newServerState =
   ServerState
   <$> newTVarIO 0
+  <*> newTVarIO Map.empty
 
 newPlayerId :: ServerState -> STM Int
 newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
@@ -35,7 +39,10 @@ newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
 -- allocates resources for managing this client.
 handleRegister :: ServerState -> Handler PlayerId
 handleRegister server = liftIO $ atomically $ do
-  newPlayerId server
+  pid <- newPlayerId server
+  queue <- newTQueue
+  modifyTVar' (sendQueues server) (Map.insert pid queue)
+  return pid
 
 -- | Handle the endpoint clients use to send new events.
 --
