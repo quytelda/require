@@ -4,16 +4,18 @@
 
 module Types where
 
+import           Control.Exception
 import           Control.Monad
+import           Control.Monad.Except
 import           Control.Monad.State
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Bifunctor
-import           Data.Map.Strict     (Map)
-import qualified Data.Map.Strict     as Map
-import           Data.Text           (Text)
-import qualified Data.Text           as T
-import qualified Data.Text.Read      as Read
+import           Data.Map.Strict      (Map)
+import qualified Data.Map.Strict      as Map
+import           Data.Text            (Text)
+import qualified Data.Text            as T
+import qualified Data.Text.Read       as Read
 import           GHC.Generics
 import           Servant
 import           System.Random
@@ -126,7 +128,7 @@ newGameState = do
   return defaultGame { gameRNG = gen }
 
 -- | A monad for game-related actions
-type Game = StateT GameState
+type Game = StateT GameState (Except GameError)
 
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.
@@ -216,3 +218,16 @@ instance FromJSON Event where
                    <$> obj .: "company"
                    <*> obj .: "amount"
       _         -> fail "invalid event type"
+
+--------------------------------------------------------------------------------
+-- Errors
+
+-- | Game-related Errors
+data GameError
+  = NotEnoughTiles -- ^ The bank doesn't have enough tiles
+  | NotEnoughMoney PlayerId -- ^ Insufficient funds for a transaction
+  | NotEnoughStock PlayerId Company -- ^ Insufficient stock for a transaction
+  | MissingTile PlayerId Tile -- ^ This player doesn't control this tile
+  deriving (Eq, Show)
+
+instance Exception GameError
