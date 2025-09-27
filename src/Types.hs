@@ -8,12 +8,14 @@ import           Control.Monad
 import           Control.Monad.State
 import           Data.Aeson
 import           Data.Aeson.Types
+import           Data.Bifunctor
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           Data.Text           (Text)
 import qualified Data.Text           as T
 import qualified Data.Text.Read      as Read
 import           GHC.Generics
+import           Servant
 import           System.Random
 
 --------------------------------------------------------------------------------
@@ -28,24 +30,30 @@ type PlayerId = Int
 data Tile = Tile !Int !Char
   deriving (Eq, Ord, Show)
 
+parseTile :: Text -> Either String Tile
+parseTile text1 = do
+  (col, text2) <- Read.decimal text1
+  (row, text3) <- maybe (Left "missing row") Right $ T.uncons text2
+
+  unless (col >= 1 && col <= 12) $
+    Left "column out-of-bounds"
+
+  unless (row >= 'A' && row <= 'I') $
+    Left "row out-of-bounds"
+
+  unless (T.null text3) $
+    Left $ "unexpected leftover input: " <> show text3
+
+  return $ Tile col row
+
 instance ToJSON Tile where
   toJSON (Tile col row) = String $ T.pack $ show col <> [row]
 
 instance FromJSON Tile where
-  parseJSON = withText "Tile" $ \text1 -> do
-    (col, text2) <- either fail pure $ Read.decimal text1
-    (row, text3) <- maybe (fail "missing row") pure $ T.uncons text2
+  parseJSON = withText "Tile" $ either fail pure . parseTile
 
-    unless (col >= 1 && col <= 12) $
-      fail "column out-of-bounds"
-
-    unless (row >= 'A' && row <= 'I') $
-      fail "row out-of-bounds"
-
-    unless (T.null text3) $
-      fail $ "unexpected leftover input: " <> show text3
-
-    return $ Tile col row
+instance FromHttpApiData Tile where
+  parseQueryParam = first T.pack . parseTile
 
 -- | The set of all possible tiles
 allTiles :: [Tile]
