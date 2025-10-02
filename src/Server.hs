@@ -1,16 +1,20 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Server where
 
 import           Control.Concurrent.STM
+import           Control.Monad.Except
 import           Control.Monad.IO.Class
+import           Data.ByteString.Lazy     (LazyByteString)
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 import           Network.Wai.Handler.Warp
 import           Servant
 
+import           Game
 import           Types
 
 type PidParam = QueryParam "pid" PlayerId
@@ -31,6 +35,7 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
 data ServerState = ServerState
   { pidSource  :: TVar PlayerId
   , sendQueues :: TVar (Map PlayerId (TQueue Event))
+  , gameState  :: TVar GameState
   }
 
 newServerState :: IO ServerState
@@ -38,6 +43,7 @@ newServerState =
   ServerState
   <$> newTVarIO 0
   <*> newTVarIO Map.empty
+  <*> (newGameState >>= newTVarIO)
 
 newPlayerId :: ServerState -> STM Int
 newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
@@ -59,23 +65,66 @@ handleRegister server = liftIO $ atomically $ do
   modifyTVar' (sendQueues server) (Map.insert pid queue)
   return pid
 
+requireParam :: LazyByteString -> Maybe a -> Handler a
+requireParam param = maybe (throwError err) pure
+  where
+    err = err400 { errBody = "\"" <> param <> "\"" <> " parameter is required" }
+
 handleDraw :: ServerState -> Maybe PlayerId -> Handler Tile
-handleDraw = undefined
+handleDraw server mpid = do
+  pid <- requireParam "pid" mpid
+  result <- liftIO $ atomically $ runGameSTM (doDraw pid) (gameState server)
+  case result of
+    Left err   -> throwError $ gameErrorToServerError err
+    Right tile -> return tile
 
 handlePlay :: ServerState -> Maybe PlayerId -> Maybe Tile -> Handler NoContent
-handlePlay = undefined
+handlePlay server mpid mtile = do
+  pid <- requireParam "pid" mpid
+  tile <- requireParam "tile" mtile
+  result <- liftIO $ atomically $ runGameSTM (doPlay pid tile) (gameState server)
+  case result of
+    Left err -> throwError $ gameErrorToServerError err
+    Right () -> return NoContent
 
 handleDiscard :: ServerState -> Maybe PlayerId -> Maybe Tile -> Handler NoContent
-handleDiscard = undefined
+handleDiscard server mpid mtile = do
+  pid <- requireParam "pid" mpid
+  tile <- requireParam "tile" mtile
+  result <- liftIO $ atomically $ runGameSTM (doDiscard pid tile) (gameState server)
+  case result of
+    Left err -> throwError $ gameErrorToServerError err
+    Right () -> return NoContent
 
 handleMarker :: ServerState -> Maybe PlayerId -> Maybe Company -> Maybe Tile -> Handler NoContent
-handleMarker = undefined
+handleMarker server mpid mcom mtile = do
+  pid <- requireParam "pid" mpid
+  com <- requireParam "company" mcom
+  result <- liftIO $ atomically $ runGameSTM (doMarker pid com mtile) (gameState server)
+  case result of
+    Left err -> throwError $ gameErrorToServerError err
+    Right () -> return NoContent
+
 
 handleMoney :: ServerState -> Maybe PlayerId -> Maybe Int -> Handler NoContent
-handleMoney = undefined
+handleMoney server mpid mamount= do
+  pid <- requireParam "pid" mpid
+  amount <- requireParam "amount" mamount
+  result <- liftIO $ atomically $ runGameSTM (doMoney pid amount) (gameState server)
+  case result of
+    Left err -> throwError $ gameErrorToServerError err
+    Right () -> return NoContent
+
 
 handleStock :: ServerState -> Maybe PlayerId -> Maybe Company -> Maybe Int -> Handler NoContent
-handleStock = undefined
+handleStock server mpid mcom mamount= do
+  pid <- requireParam "pid" mpid
+  com <- requireParam "company" mcom
+  amount <- requireParam "amount" mamount
+  result <- liftIO $ atomically $ runGameSTM (doStock pid com amount) (gameState server)
+  case result of
+    Left err -> throwError $ gameErrorToServerError err
+    Right () -> return NoContent
 
 -- | Handle the endpoint that clients poll for published events.
 --
