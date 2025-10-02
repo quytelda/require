@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 
 module Types where
@@ -290,3 +291,24 @@ renderTileLoc Pool       = "the pool"
 renderTileLoc (Hand pid) = renderPid pid <> "'s hand"
 renderTileLoc Play       = "the board"
 renderTileLoc Discard    = "the discard pile"
+
+--------------------------------------------------------------------------------
+-- Server Types
+
+data ServerState = ServerState
+  { pidSource  :: TVar PlayerId
+  , sendQueues :: TVar (Map PlayerId (TQueue Event))
+  , gameState  :: TVar GameState
+  }
+
+newServerState :: IO ServerState
+newServerState =
+  ServerState
+  <$> newTVarIO 0
+  <*> newTVarIO Map.empty
+  <*> (newGameState >>= newTVarIO)
+
+-- | Generate a new 'PlayerId' guaranteed to be unique for this
+-- 'Server'.
+newPlayerId :: ServerState -> STM Int
+newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource

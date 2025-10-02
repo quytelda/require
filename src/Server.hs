@@ -32,22 +32,6 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
      :<|> "stock"   :> CompanyParam :> AmountParam :> EventReq
      )
 
-data ServerState = ServerState
-  { pidSource  :: TVar PlayerId
-  , sendQueues :: TVar (Map PlayerId (TQueue Event))
-  , gameState  :: TVar GameState
-  }
-
-newServerState :: IO ServerState
-newServerState =
-  ServerState
-  <$> newTVarIO 0
-  <*> newTVarIO Map.empty
-  <*> (newGameState >>= newTVarIO)
-
-newPlayerId :: ServerState -> STM Int
-newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
-
 -- | Append an 'Event' to the outgoing queue of every registered client.
 broadcast :: ServerState -> Event -> STM ()
 broadcast server event =
