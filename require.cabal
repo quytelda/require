@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Game
       Server
       Types
   other-modules:
