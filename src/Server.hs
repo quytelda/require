@@ -7,8 +7,6 @@ module Server where
 
 import           Control.Concurrent.STM
 import           Control.Monad.Except
-import           Control.Monad.IO.Class
-import           Data.ByteString.Lazy     (LazyByteString)
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 import           Network.Wai.Handler.Warp
@@ -17,20 +15,22 @@ import           Servant
 import           Game
 import           Types
 
-type PidParam = QueryParam "pid" PlayerId
-type TileParam = QueryParam "tile" Tile
-type CompanyParam = QueryParam "company" Company
-type AmountParam = QueryParam "amount" Int
+type RequiredParam = QueryParam' '[Required, Strict]
+type TileParam = RequiredParam "tile" Tile
+type CompanyParam = RequiredParam "company" Company
+type AmountParam = RequiredParam "amount" Int
 type EventReq = Post '[JSON] NoContent
 
 type RequireAPI = "register" :> Get '[JSON] PlayerId
-  :<|> "events"  :> PidParam :> Get '[JSON] [Event]
-  :<|> "draw"    :> PidParam :> Post '[JSON] Tile
-  :<|> "play"    :> PidParam :> TileParam    :> EventReq
-  :<|> "discard" :> PidParam :> TileParam    :> EventReq
-  :<|> "marker"  :> PidParam :> CompanyParam :> TileParam :> EventReq
-  :<|> "money"   :> PidParam :> AmountParam  :> EventReq
-  :<|> "stock"   :> PidParam :> CompanyParam :> AmountParam :> EventReq
+  :<|> Capture "PlayerId" PlayerId :> "events" :> Get '[JSON] [Event]
+  :<|> Capture "PlayerId" PlayerId
+  :> (    "draw"    :> Post '[JSON] Tile
+     :<|> "play"    :> TileParam    :> EventReq
+     :<|> "discard" :> TileParam    :> EventReq
+     :<|> "marker"  :> CompanyParam :> QueryParam "tile" Tile :> EventReq
+     :<|> "money"   :> AmountParam  :> EventReq
+     :<|> "stock"   :> CompanyParam :> AmountParam :> EventReq
+     )
 
 data ServerState = ServerState
   { pidSource  :: TVar PlayerId
@@ -65,84 +65,66 @@ handleRegister server = liftIO $ atomically $ do
   modifyTVar' (sendQueues server) (Map.insert pid queue)
   return pid
 
-requireParam :: LazyByteString -> Maybe a -> Handler a
-requireParam param = maybe (throwError err) pure
-  where
-    err = err400 { errBody = "\"" <> param <> "\"" <> " parameter is required" }
+-- | Handle the endpoint that clients poll for published events.
+--
+-- This endpoint should be long-polled and will respond with a list of
+-- zero or more events as they are available.
+handleEvents :: ServerState -> PlayerId -> Handler [Event]
+handleEvents = undefined
 
-handleDraw :: ServerState -> Maybe PlayerId -> Handler Tile
-handleDraw server mpid = do
-  pid <- requireParam "pid" mpid
+handleDraw :: ServerState -> PlayerId -> Handler Tile
+handleDraw server pid = do
   result <- liftIO $ atomically $ runGameSTM (doDraw pid) (gameState server)
   case result of
     Left err   -> throwError $ gameErrorToServerError err
     Right tile -> return tile
 
-handlePlay :: ServerState -> Maybe PlayerId -> Maybe Tile -> Handler NoContent
-handlePlay server mpid mtile = do
-  pid <- requireParam "pid" mpid
-  tile <- requireParam "tile" mtile
+handlePlay :: ServerState -> PlayerId -> Tile -> Handler NoContent
+handlePlay server pid tile = do
   result <- liftIO $ atomically $ runGameSTM (doPlay pid tile) (gameState server)
   case result of
     Left err -> throwError $ gameErrorToServerError err
     Right () -> return NoContent
 
-handleDiscard :: ServerState -> Maybe PlayerId -> Maybe Tile -> Handler NoContent
-handleDiscard server mpid mtile = do
-  pid <- requireParam "pid" mpid
-  tile <- requireParam "tile" mtile
+handleDiscard :: ServerState -> PlayerId -> Tile -> Handler NoContent
+handleDiscard server pid tile = do
   result <- liftIO $ atomically $ runGameSTM (doDiscard pid tile) (gameState server)
   case result of
     Left err -> throwError $ gameErrorToServerError err
     Right () -> return NoContent
 
-handleMarker :: ServerState -> Maybe PlayerId -> Maybe Company -> Maybe Tile -> Handler NoContent
-handleMarker server mpid mcom mtile = do
-  pid <- requireParam "pid" mpid
-  com <- requireParam "company" mcom
+handleMarker :: ServerState -> PlayerId -> Company -> Maybe Tile -> Handler NoContent
+handleMarker server pid com mtile = do
   result <- liftIO $ atomically $ runGameSTM (doMarker pid com mtile) (gameState server)
   case result of
     Left err -> throwError $ gameErrorToServerError err
     Right () -> return NoContent
 
-
-handleMoney :: ServerState -> Maybe PlayerId -> Maybe Int -> Handler NoContent
-handleMoney server mpid mamount= do
-  pid <- requireParam "pid" mpid
-  amount <- requireParam "amount" mamount
+handleMoney :: ServerState -> PlayerId -> Int -> Handler NoContent
+handleMoney server pid amount = do
   result <- liftIO $ atomically $ runGameSTM (doMoney pid amount) (gameState server)
   case result of
     Left err -> throwError $ gameErrorToServerError err
     Right () -> return NoContent
 
-
-handleStock :: ServerState -> Maybe PlayerId -> Maybe Company -> Maybe Int -> Handler NoContent
-handleStock server mpid mcom mamount= do
-  pid <- requireParam "pid" mpid
-  com <- requireParam "company" mcom
-  amount <- requireParam "amount" mamount
+handleStock :: ServerState -> PlayerId -> Company -> Int -> Handler NoContent
+handleStock server pid com amount= do
   result <- liftIO $ atomically $ runGameSTM (doStock pid com amount) (gameState server)
   case result of
     Left err -> throwError $ gameErrorToServerError err
     Right () -> return NoContent
 
--- | Handle the endpoint that clients poll for published events.
---
--- This endpoint should be long-polled and will respond with a list of
--- zero or more events as they are available.
-handleEvents :: ServerState -> Maybe PlayerId -> Handler [Event]
-handleEvents = undefined
-
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleRegister s
   :<|> handleEvents s
-  :<|> handleDraw s
-  :<|> handlePlay s
-  :<|> handleDiscard s
-  :<|> handleMarker s
-  :<|> handleMoney s
-  :<|> handleStock s
+  :<|> (\pid -> handleDraw s pid
+         :<|> handlePlay s pid
+         :<|> handleDiscard s pid
+         :<|> handleMarker s pid
+         :<|> handleMoney s pid
+         :<|> handleStock s pid
+       )
 
 requireAPI :: Proxy RequireAPI
 requireAPI = Proxy
