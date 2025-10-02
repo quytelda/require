@@ -227,7 +227,7 @@ data GameError
   = NotEnoughTiles -- ^ The bank doesn't have enough tiles
   | NotEnoughMoney PlayerId -- ^ Insufficient funds for a transaction
   | NotEnoughStock PlayerId Company -- ^ Insufficient stock for a transaction
-  | MissingTile PlayerId Tile -- ^ This player doesn't control this tile
+  | InvalidMove Tile TileLoc TileLoc -- ^ This tile movement is invalid
   deriving (Eq, Show)
 
 instance Exception GameError
