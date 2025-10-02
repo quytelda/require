@@ -132,6 +132,15 @@ newGameState = do
 -- | A monad for game-related actions
 type Game = StateT GameState (Except GameError)
 
+runGame :: Game a -> GameState -> Either GameError (a, GameState)
+runGame g = runExcept . runStateT g
+
+execGame :: Game a -> GameState -> Either GameError GameState
+execGame g = runExcept . execStateT g
+
+evalGame :: Game a -> GameState -> Either GameError a
+evalGame g = runExcept . evalStateT g
+
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.
 data Event
