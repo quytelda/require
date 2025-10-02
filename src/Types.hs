@@ -4,6 +4,7 @@
 
 module Types where
 
+import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Except
@@ -140,6 +141,13 @@ execGame g = runExcept . execStateT g
 
 evalGame :: Game a -> GameState -> Either GameError a
 evalGame g = runExcept . evalStateT g
+
+runGameSTM :: Game a -> TVar GameState -> STM (Either GameError a)
+runGameSTM g tv = do
+  s <- readTVar tv
+  case runGame g s of
+    Left err      -> return (Left err)
+    Right (a, s') -> return (Right a) <* writeTVar tv s'
 
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.
