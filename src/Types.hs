@@ -11,11 +11,13 @@ import           Control.Monad.State
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Bifunctor
-import           Data.Map.Strict      (Map)
-import qualified Data.Map.Strict      as Map
-import           Data.Text            (Text)
-import qualified Data.Text            as T
-import qualified Data.Text.Read       as Read
+import           Data.ByteString.Builder
+import           Data.ByteString.Lazy    (LazyByteString)
+import           Data.Map.Strict         (Map)
+import qualified Data.Map.Strict         as Map
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.Read          as Read
 import           GHC.Generics
 import           Servant
 import           System.Random
@@ -231,3 +233,43 @@ data GameError
   deriving (Eq, Show)
 
 instance Exception GameError
+
+describeGameError :: GameError -> LazyByteString
+describeGameError = toLazyByteString . describeGameError'
+  where
+    describeGameError' NotEnoughTiles =
+      "not enough tiles in the drawing pool"
+    describeGameError' (NotEnoughMoney pid) =
+      renderPid pid
+      <> " doesn't have enough money"
+    describeGameError' (NotEnoughStock pid com) =
+      renderPid pid
+      <> " doesn't have enough "
+      <> renderCompany com
+      <> " stock"
+    describeGameError' (InvalidMove tile fromZone toZone) =
+      "cannot move tile "
+      <> renderTile tile
+      <> " from "
+      <> renderTileLoc fromZone
+      <> " to "
+      <> renderTileLoc toZone
+
+gameErrorToServerError :: GameError -> ServerError
+gameErrorToServerError err = err400 { errBody = describeGameError err }
+
+renderPid :: PlayerId -> Builder
+renderPid 0   = "the bank"
+renderPid pid = "player #" <> intDec pid
+
+renderCompany :: Company -> Builder
+renderCompany = string8 . show
+
+renderTile :: Tile -> Builder
+renderTile (Tile col row) = intDec col <> char8 row
+
+renderTileLoc :: TileLoc -> Builder
+renderTileLoc Pool       = "the pool"
+renderTileLoc (Hand pid) = renderPid pid <> "'s hand"
+renderTileLoc Play       = "the board"
+renderTileLoc Discard    = "the discard pile"
