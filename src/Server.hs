@@ -26,7 +26,10 @@ type AmountParam = RequiredParam "amount" Int
 type EventReq = Post '[JSON] NoContent
 
 type RequireAPI = "register" :> Get '[JSON] PlayerId
-  :<|> Capture "PlayerId" PlayerId :> "events" :> Get '[JSON] (Seq Event)
+  :<|> Capture "PlayerId" PlayerId
+  :> (    "events" :> Get '[JSON] (Seq Event)
+     :<|> "reset"  :> Get '[JSON] NoContent
+     )
   :<|> Capture "PlayerId" PlayerId
   :> (    "draw"    :> Post '[JSON] Tile
      :<|> "play"    :> TileParam    :> EventReq
@@ -39,7 +42,9 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleRegister s
-  :<|> handleEvents s
+  :<|> (\pid -> handleEvents s pid
+         :<|> handleReset s pid
+       )
   :<|> (\pid -> handleDraw s pid
          :<|> handlePlay s pid
          :<|> handleDiscard s pid
@@ -78,6 +83,10 @@ handleEvents ServerState{..} pid = liftIO $ atomically $ do
     Just offset -> do history <- readTVar eventHistory
                       modifyTVar' clientOffsets $ Map.insert pid (length history)
                       return $ Seq.drop offset history
+
+handleReset :: ServerState -> PlayerId -> Handler NoContent
+handleReset ServerState{..} pid = liftIO . atomically $
+  modifyTVar' clientOffsets (Map.insert pid 0) $> NoContent
 
 --------------------------------------------------------------------------------
 -- Handlers for Game Events
