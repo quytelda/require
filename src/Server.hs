@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
@@ -7,6 +8,7 @@ module Server where
 
 import           Control.Concurrent.STM
 import           Control.Monad.Except
+import           Data.Functor
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 import           Data.Sequence            (Seq)
@@ -34,68 +36,6 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
      :<|> "stock"   :> CompanyParam :> AmountParam :> EventReq
      )
 
-publish :: ServerState -> Event -> STM ()
-publish server event = appendHistory server event
-
--- | Handle the new client registration endpoint.
---
--- Generates a new player ID which is unique for this server and
--- allocates resources for managing this client.
-handleRegister :: ServerState -> Handler PlayerId
-handleRegister server = liftIO $ atomically $ do
-  pid <- newPlayerId server
-  modifyTVar' (clientOffsets server) (Map.insert pid 0)
-  return pid
-
--- | Handle the endpoint that clients poll for published events.
---
--- This endpoint should be long-polled and will respond with a list of
--- zero or more events as they are available.
-handleEvents :: ServerState -> PlayerId -> Handler [Event]
-handleEvents = undefined
-
-handleDraw :: ServerState -> PlayerId -> Handler Tile
-handleDraw server pid = do
-  result <- liftIO $ atomically $ runGameSTM (doDraw pid) (gameState server)
-  case result of
-    Left err   -> throwError $ gameErrorToServerError err
-    Right tile -> return tile
-
-handlePlay :: ServerState -> PlayerId -> Tile -> Handler NoContent
-handlePlay server pid tile = do
-  result <- liftIO $ atomically $ runGameSTM (doPlay pid tile) (gameState server)
-  case result of
-    Left err -> throwError $ gameErrorToServerError err
-    Right () -> return NoContent
-
-handleDiscard :: ServerState -> PlayerId -> Tile -> Handler NoContent
-handleDiscard server pid tile = do
-  result <- liftIO $ atomically $ runGameSTM (doDiscard pid tile) (gameState server)
-  case result of
-    Left err -> throwError $ gameErrorToServerError err
-    Right () -> return NoContent
-
-handleMarker :: ServerState -> PlayerId -> Company -> Maybe Tile -> Handler NoContent
-handleMarker server pid com mtile = do
-  result <- liftIO $ atomically $ runGameSTM (doMarker pid com mtile) (gameState server)
-  case result of
-    Left err -> throwError $ gameErrorToServerError err
-    Right () -> return NoContent
-
-handleMoney :: ServerState -> PlayerId -> Int -> Handler NoContent
-handleMoney server pid amount = do
-  result <- liftIO $ atomically $ runGameSTM (doMoney pid amount) (gameState server)
-  case result of
-    Left err -> throwError $ gameErrorToServerError err
-    Right () -> return NoContent
-
-handleStock :: ServerState -> PlayerId -> Company -> Int -> Handler NoContent
-handleStock server pid com amount= do
-  result <- liftIO $ atomically $ runGameSTM (doStock pid com amount) (gameState server)
-  case result of
-    Left err -> throwError $ gameErrorToServerError err
-    Right () -> return NoContent
-
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleRegister s
@@ -113,3 +53,94 @@ requireAPI = Proxy
 
 runServer :: ServerState -> IO ()
 runServer = run 11073 . serve requireAPI . requireServer
+
+publish :: ServerState -> Event -> STM ()
+publish server event = appendHistory server event
+
+-- | Handle the new client registration endpoint.
+--
+-- Generates a new player ID which is unique for this server and
+-- allocates resources for managing this client.
+handleRegister :: ServerState -> Handler PlayerId
+handleRegister server = liftIO $ atomically $ do
+  pid <- newPlayerId server
+  modifyTVar' (clientOffsets server) (Map.insert pid 0)
+  return pid
+
+-- | Handle the endpoint that clients poll for published events.
+--
+-- This endpoint should be long-polled and will respond with a list of
+-- zero or more events as they are available.
+handleEvents :: ServerState -> PlayerId -> Handler (Seq Event)
+handleEvents ServerState{..} pid = liftIO $ atomically $ do
+  Map.lookup pid <$> readTVar clientOffsets >>= \case
+    Nothing -> return mempty
+    Just offset -> do history <- readTVar eventHistory
+                      modifyTVar' clientOffsets $ Map.insert pid (length history)
+                      return $ Seq.drop offset history
+
+--------------------------------------------------------------------------------
+-- Handlers for Game Events
+
+handleGameEvent
+  :: ServerState
+  -> Game a
+  -> Event
+  -> Handler a
+handleGameEvent server handler event = join . liftIO . atomically $
+  runGameSTM handler (gameState server) >>= \case
+    Left err  -> return $ throwError $ gameErrorToServerError err
+    Right res -> publish server event $> return res
+
+handleDraw
+  :: ServerState
+  -> PlayerId
+  -> Handler Tile
+handleDraw server pid = handleGameEvent server (doDraw pid) (DrawEvent pid)
+
+handlePlay
+  :: ServerState
+  -> PlayerId
+  -> Tile
+  -> Handler NoContent
+handlePlay server pid tile =
+  handleGameEvent server (doPlay pid tile) (PlayEvent pid tile)
+  $> NoContent
+
+handleDiscard
+  :: ServerState
+  -> PlayerId
+  -> Tile
+  -> Handler NoContent
+handleDiscard server pid tile =
+  handleGameEvent server (doDiscard pid tile) (DiscardEvent pid tile)
+  $> NoContent
+
+handleMarker
+  :: ServerState
+  -> PlayerId
+  -> Company
+  -> Maybe Tile
+  -> Handler NoContent
+handleMarker server pid com mtile =
+  handleGameEvent server (doMarker pid com mtile) (MarkerEvent pid com mtile)
+  $> NoContent
+
+handleMoney
+  :: ServerState
+  -> PlayerId
+  -> Int
+  -> Handler NoContent
+handleMoney server pid amount =
+  handleGameEvent server (doMoney pid amount) (MoneyEvent pid amount)
+  $> NoContent
+
+handleStock
+  :: ServerState
+  -> PlayerId
+  -> Company
+  -> Int
+  -> Handler NoContent
+handleStock server pid com amount =
+  handleGameEvent server (doStock pid com amount) (StockEvent pid com amount)
+  $> NoContent
