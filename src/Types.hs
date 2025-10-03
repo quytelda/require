@@ -17,6 +17,7 @@ import           Data.ByteString.Builder
 import           Data.ByteString.Lazy    (LazyByteString)
 import           Data.Map.Strict         (Map)
 import qualified Data.Map.Strict         as Map
+import           Data.Sequence           (Seq, (|>))
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import qualified Data.Text.Read          as Read
@@ -296,19 +297,26 @@ renderTileLoc Discard    = "the discard pile"
 -- Server Types
 
 data ServerState = ServerState
-  { pidSource  :: TVar PlayerId
-  , sendQueues :: TVar (Map PlayerId (TQueue Event))
-  , gameState  :: TVar GameState
+  { pidSource     :: TVar PlayerId -- ^ A source for unique 'PlayerId's
+  , clientOffsets :: TVar (Map PlayerId Int) -- ^ How many messages has each client seen?
+  , eventHistory  :: TVar (Seq Event) -- ^ History of successful game events
+  , gameState     :: TVar GameState -- ^ The current state of the game
   }
 
 newServerState :: IO ServerState
 newServerState =
   ServerState
   <$> newTVarIO 0
-  <*> newTVarIO Map.empty
+  <*> newTVarIO mempty
+  <*> newTVarIO mempty
   <*> (newGameState >>= newTVarIO)
 
 -- | Generate a new 'PlayerId' guaranteed to be unique for this
 -- 'Server'.
 newPlayerId :: ServerState -> STM Int
 newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
+
+-- | Add an event to the server's event history.
+appendHistory :: ServerState -> Event -> STM ()
+appendHistory ServerState{..} =
+  modifyTVar' eventHistory . flip (|>)

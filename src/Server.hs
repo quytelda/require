@@ -9,6 +9,8 @@ import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
+import           Data.Sequence            (Seq)
+import qualified Data.Sequence            as Seq
 import           Network.Wai.Handler.Warp
 import           Servant
 
@@ -22,7 +24,7 @@ type AmountParam = RequiredParam "amount" Int
 type EventReq = Post '[JSON] NoContent
 
 type RequireAPI = "register" :> Get '[JSON] PlayerId
-  :<|> Capture "PlayerId" PlayerId :> "events" :> Get '[JSON] [Event]
+  :<|> Capture "PlayerId" PlayerId :> "events" :> Get '[JSON] (Seq Event)
   :<|> Capture "PlayerId" PlayerId
   :> (    "draw"    :> Post '[JSON] Tile
      :<|> "play"    :> TileParam    :> EventReq
@@ -32,11 +34,8 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
      :<|> "stock"   :> CompanyParam :> AmountParam :> EventReq
      )
 
--- | Append an 'Event' to the outgoing queue of every registered client.
-broadcast :: ServerState -> Event -> STM ()
-broadcast server event =
-  readTVar (sendQueues server)
-  >>= mapM_ (flip writeTQueue event)
+publish :: ServerState -> Event -> STM ()
+publish server event = appendHistory server event
 
 -- | Handle the new client registration endpoint.
 --
@@ -45,8 +44,7 @@ broadcast server event =
 handleRegister :: ServerState -> Handler PlayerId
 handleRegister server = liftIO $ atomically $ do
   pid <- newPlayerId server
-  queue <- newTQueue
-  modifyTVar' (sendQueues server) (Map.insert pid queue)
+  modifyTVar' (clientOffsets server) (Map.insert pid 0)
   return pid
 
 -- | Handle the endpoint that clients poll for published events.
