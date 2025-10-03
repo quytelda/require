@@ -1,4 +1,7 @@
 module Main (main) where
 
+import           Server
+import           Types
+
 main :: IO ()
-main = undefined
+main = newServerState >>= runServer
