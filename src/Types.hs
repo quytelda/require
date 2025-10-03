@@ -15,6 +15,7 @@ import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.ByteString.Builder
 import           Data.ByteString.Lazy    (LazyByteString)
+import           Data.Functor
 import           Data.Map.Strict         (Map)
 import qualified Data.Map.Strict         as Map
 import           Data.Sequence           (Seq, (|>))
@@ -149,7 +150,7 @@ runGameSTM g tv = do
   s <- readTVar tv
   case runGame g s of
     Left err      -> return (Left err)
-    Right (a, s') -> return (Right a) <* writeTVar tv s'
+    Right (a, s') -> writeTVar tv s' $> Right a
 
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.

@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
 
@@ -9,7 +8,6 @@ module Server where
 import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
-import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 import           Data.Sequence            (Seq)
 import qualified Data.Sequence            as Seq
@@ -60,7 +58,7 @@ runServer :: ServerState -> IO ()
 runServer = run 11073 . serve requireAPI . requireServer
 
 publish :: ServerState -> Event -> STM ()
-publish server event = appendHistory server event
+publish = appendHistory
 
 -- | Handle the new client registration endpoint.
 --
@@ -78,11 +76,13 @@ handleRegister server = liftIO $ atomically $ do
 -- zero or more events as they are available.
 handleEvents :: ServerState -> PlayerId -> Handler (Seq Event)
 handleEvents ServerState{..} pid = liftIO $ atomically $ do
-  Map.lookup pid <$> readTVar clientOffsets >>= \case
+  positions <- readTVar clientOffsets
+  case Map.lookup pid positions of
     Nothing -> return mempty
-    Just offset -> do history <- readTVar eventHistory
-                      modifyTVar' clientOffsets $ Map.insert pid (length history)
-                      return $ Seq.drop offset history
+    Just offset -> do
+      history <- readTVar eventHistory
+      modifyTVar' clientOffsets $ Map.insert pid (length history)
+      return $ Seq.drop offset history
 
 handleReset :: ServerState -> PlayerId -> Handler NoContent
 handleReset ServerState{..} pid = liftIO . atomically $
