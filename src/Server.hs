@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
 
@@ -11,6 +12,8 @@ import           Data.Functor
 import qualified Data.Map.Strict          as Map
 import           Data.Sequence            (Seq)
 import qualified Data.Sequence            as Seq
+import qualified Data.Text                as T
+import qualified Data.Text.IO             as TIO
 import           Network.Wai.Handler.Warp
 import           Servant
 
@@ -65,9 +68,12 @@ publish = appendHistory
 -- Generates a new player ID which is unique for this server and
 -- allocates resources for managing this client.
 handleRegister :: ServerState -> Handler PlayerId
-handleRegister server = liftIO $ atomically $ do
-  pid <- newPlayerId server
-  modifyTVar' (clientOffsets server) (Map.insert pid 0)
+handleRegister server = liftIO $ do
+  pid <- atomically $ do
+    pid <- newPlayerId server
+    modifyTVar' (clientOffsets server) (Map.insert pid 0)
+    return pid
+  putStrLn $ "New client registered with PID: " <> show pid
   return pid
 
 -- | Handle the endpoint that clients poll for published events.
@@ -96,10 +102,13 @@ handleGameEvent
   -> Game a
   -> Event
   -> Handler a
-handleGameEvent server handler event = join . liftIO . atomically $
-  runGameSTM handler (gameState server) >>= \case
-    Left err  -> return $ throwError $ gameErrorToServerError err
-    Right res -> publish server event $> return res
+handleGameEvent server handler event = do
+  result <- join . liftIO . atomically $
+    runGameSTM handler (gameState server) >>= \case
+      Left err  -> return $ throwError $ gameErrorToServerError err
+      Right res -> publish server event $> return res
+  liftIO $ TIO.putStrLn $ "Event: " <> T.pack (show event)
+  return result
 
 handleDraw
   :: ServerState
