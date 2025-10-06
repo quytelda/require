@@ -30,6 +30,9 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
   :> (    "events" :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
+     -- state queries
+     :<|> "hand"   :> Get '[JSON] [Tile]
+     :<|> "board"  :> Get '[JSON] [Tile]
      )
   :<|> Capture "PlayerId" PlayerId
   :> (    "draw"    :> Post '[JSON] Tile
@@ -45,6 +48,8 @@ requireServer s =
   handleRegister s
   :<|> (\pid -> handleEvents s pid
          :<|> handleReset s pid
+         :<|> handleHand s pid
+         :<|> handleBoard s pid
        )
   :<|> (\pid -> handleDraw s pid
          :<|> handlePlay s pid
@@ -93,6 +98,16 @@ handleEvents ServerState{..} pid = liftIO $ atomically $ do
 handleReset :: ServerState -> PlayerId -> Handler NoContent
 handleReset ServerState{..} pid = liftIO . atomically $
   modifyTVar' clientOffsets (Map.insert pid 0) $> NoContent
+
+handleHand :: ServerState -> PlayerId -> Handler [Tile]
+handleHand ServerState{..} pid =
+  tilesInZone (Hand pid)
+  <$> liftIO (readTVarIO gameState)
+
+handleBoard :: ServerState -> PlayerId -> Handler [Tile]
+handleBoard ServerState{..} _ =
+  tilesInZone Play
+  <$> liftIO (readTVarIO gameState)
 
 --------------------------------------------------------------------------------
 -- Handlers for Game Events

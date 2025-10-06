@@ -63,6 +63,9 @@ doStock pid com amount = do
 --------------------------------------------------------------------------------
 -- Managing Game State
 
+tilesInZone :: TileLoc -> GameState -> [Tile]
+tilesInZone zone = Map.keys . Map.filter (== zone) . gameTiles
+
 setTileStatus :: Tile -> TileLoc -> Game ()
 setTileStatus tile status = modify' $ \game ->
   game { gameTiles = Map.insert tile status (gameTiles game) }
@@ -75,6 +78,11 @@ grabFromPool = do
     then pure Nothing
     else modify' (\game -> game { gameRNG = g })
          $> Just (pool !! n)
+
+getHand :: PlayerId -> Game [Tile]
+getHand pid = do
+  tileMap <- gets gameTiles
+  return $ Map.keys $ Map.filter (== Hand pid) tileMap
 
 moveTile :: TileLoc -> TileLoc -> Tile -> Game ()
 moveTile fromZone toZone tile = do
