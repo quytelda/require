@@ -34,6 +34,7 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
      :<|> "hand"   :> Get '[JSON] [Tile]
      :<|> "board"  :> Get '[JSON] [Tile]
      )
+  :<|> "marker" :> Capture "Company" Company :> Get '[JSON] (Maybe Tile)
   :<|> Capture "PlayerId" PlayerId
   :> (    "draw"    :> Post '[JSON] Tile
      :<|> "play"    :> TileParam    :> EventReq
@@ -51,6 +52,7 @@ requireServer s =
          :<|> handleHand s pid
          :<|> handleBoard s pid
        )
+  :<|> handleQueryMarker s
   :<|> (\pid -> handleDraw s pid
          :<|> handlePlay s pid
          :<|> handleDiscard s pid
@@ -107,6 +109,12 @@ handleHand ServerState{..} pid =
 handleBoard :: ServerState -> PlayerId -> Handler [Tile]
 handleBoard ServerState{..} _ =
   tilesInZone Play
+  <$> liftIO (readTVarIO gameState)
+
+handleQueryMarker :: ServerState -> Company -> Handler (Maybe Tile)
+handleQueryMarker ServerState{..} com =
+  Map.lookup com
+  . gameMarkers
   <$> liftIO (readTVarIO gameState)
 
 --------------------------------------------------------------------------------
