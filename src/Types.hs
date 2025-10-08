@@ -76,6 +76,16 @@ data TileLoc
   | Discard       -- ^ Discarded and unusable
   deriving (Eq, Show)
 
+parseTileLoc :: Text -> Either String TileLoc
+parseTileLoc "pool"    = pure Pool
+parseTileLoc "play"    = pure Play
+parseTileLoc "discard" = pure Discard
+parseTileLoc txt =
+  fmap (Hand . fst)
+  . maybe (Left "invalid tile zone") Read.decimal
+  . T.stripPrefix "hand/"
+  $ txt
+
 instance ToJSON TileLoc where
   toJSON Pool       = String "pool"
   toJSON (Hand pid) = String $ T.pack $ "hand/" <> show pid
@@ -83,15 +93,10 @@ instance ToJSON TileLoc where
   toJSON Discard    = String "discard"
 
 instance FromJSON TileLoc where
-  parseJSON = withText "TileLoc" $ \case
-    "pool"    -> pure Pool
-    "play"    -> pure Play
-    "discard" -> pure Discard
-    txt | "hand/" `T.isPrefixOf` txt ->
-          case Read.decimal (T.drop 5 txt) of
-            Right (pid, _) -> pure (Hand pid)
-            Left err -> fail err
-        | otherwise -> fail "invalid tile zone"
+  parseJSON = withText "TileLoc" $ either fail pure . parseTileLoc
+
+instance FromHttpApiData TileLoc where
+  parseQueryParam = first T.pack . parseTileLoc
 
 -- | Companies in which players may invest
 data Company
@@ -178,6 +183,7 @@ data Event
   | PlayEvent    PlayerId Tile -- ^ Put a tile on the board
   | DiscardEvent PlayerId Tile -- ^ Discard an unusable tile
   | ReturnEvent  PlayerId Tile -- ^ Return a pile to the pool
+  | MoveEvent    PlayerId Tile TileLoc TileLoc -- ^ Move a tile between zones
   | MarkerEvent  PlayerId Company (Maybe Tile) -- ^ Place or remove a company marker tile
   | MoneyEvent   PlayerId Money -- ^ Take or return money
   | StockEvent   PlayerId Company Int -- ^ Take or return stocks
@@ -185,14 +191,15 @@ data Event
 
 -- | From which player did this event originate?
 eventSource :: Event -> PlayerId
-eventSource (JoinEvent    pid)     = pid
-eventSource (DrawEvent    pid)     = pid
-eventSource (PlayEvent    pid _)   = pid
-eventSource (DiscardEvent pid _)   = pid
-eventSource (ReturnEvent  pid _)   = pid
-eventSource (MarkerEvent  pid _ _) = pid
-eventSource (MoneyEvent   pid _)   = pid
-eventSource (StockEvent   pid _ _) = pid
+eventSource (JoinEvent    pid)       = pid
+eventSource (DrawEvent    pid)       = pid
+eventSource (PlayEvent    pid _)     = pid
+eventSource (DiscardEvent pid _)     = pid
+eventSource (ReturnEvent  pid _)     = pid
+eventSource (MoveEvent    pid _ _ _) = pid
+eventSource (MarkerEvent  pid _ _)   = pid
+eventSource (MoneyEvent   pid _)     = pid
+eventSource (StockEvent   pid _ _)   = pid
 
 instance ToJSON Event where
   toJSON (JoinEvent pid) =
@@ -217,6 +224,13 @@ instance ToJSON Event where
     object [ "type" .= String "return"
            , "source" .= pid
            , "tile" .= tile
+           ]
+  toJSON (MoveEvent pid tile srcZone dstZone) =
+    object [ "type" .= String "move"
+           , "source" .= pid
+           , "tile" .= tile
+           , "src" .= srcZone
+           , "dst" .= dstZone
            ]
   toJSON (MarkerEvent pid com mtile) =
     object [ "type" .= String "marker"
@@ -249,6 +263,10 @@ instance FromJSON Event where
                    <$> obj .: "tile"
       "return"  -> ReturnEvent pid
                    <$> obj .: "tile"
+      "move"    -> MoveEvent pid
+                   <$> obj .: "tile"
+                   <*> obj .: "src"
+                   <*> obj .: "dst"
       "marker"  -> MarkerEvent pid
                    <$> obj .: "company"
                    <*> obj .:? "tile"

@@ -39,6 +39,7 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
   :> (    "draw"    :> Post '[JSON] Tile
      :<|> "play"    :> TileParam    :> EventReq
      :<|> "discard" :> TileParam    :> EventReq
+     :<|> "move"    :> TileParam    :> RequiredParam "src" TileLoc :> RequiredParam "dst" TileLoc :> EventReq
      :<|> "marker"  :> CompanyParam :> QueryParam "tile" Tile :> EventReq
      :<|> "money"   :> AmountParam  :> EventReq
      :<|> "stock"   :> CompanyParam :> AmountParam :> EventReq
@@ -56,6 +57,7 @@ requireServer s =
   :<|> (\pid -> handleDraw s pid
          :<|> handlePlay s pid
          :<|> handleDiscard s pid
+         :<|> handleMove s pid
          :<|> handleMarker s pid
          :<|> handleMoney s pid
          :<|> handleStock s pid
@@ -155,6 +157,17 @@ handleDiscard
   -> Handler NoContent
 handleDiscard server pid tile =
   handleGameEvent server (doDiscard pid tile) (DiscardEvent pid tile)
+  $> NoContent
+
+handleMove
+  :: ServerState
+  -> PlayerId
+  -> Tile
+  -> TileLoc
+  -> TileLoc
+  -> Handler NoContent
+handleMove server pid tile src dst =
+  handleGameEvent server (moveTile src dst tile) (MoveEvent pid tile src dst)
   $> NoContent
 
 handleMarker
