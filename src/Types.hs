@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
@@ -74,6 +75,23 @@ data TileLoc
   | Play          -- ^ On the game board
   | Discard       -- ^ Discarded and unusable
   deriving (Eq, Show)
+
+instance ToJSON TileLoc where
+  toJSON Pool       = String "pool"
+  toJSON (Hand pid) = String $ T.pack $ "hand/" <> show pid
+  toJSON Play       = String "play"
+  toJSON Discard    = String "discard"
+
+instance FromJSON TileLoc where
+  parseJSON = withText "TileLoc" $ \case
+    "pool"    -> pure Pool
+    "play"    -> pure Play
+    "discard" -> pure Discard
+    txt | "hand/" `T.isPrefixOf` txt ->
+          case Read.decimal (T.drop 5 txt) of
+            Right (pid, _) -> pure (Hand pid)
+            Left err -> fail err
+        | otherwise -> fail "invalid tile zone"
 
 -- | Companies in which players may invest
 data Company
