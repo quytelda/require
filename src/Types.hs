@@ -203,12 +203,6 @@ type Game = StateT GameState (Except GameError)
 runGame :: Game a -> GameState -> Either GameError (a, GameState)
 runGame g = runExcept . runStateT g
 
-execGame :: Game a -> GameState -> Either GameError GameState
-execGame g = runExcept . execStateT g
-
-evalGame :: Game a -> GameState -> Either GameError a
-evalGame g = runExcept . evalStateT g
-
 runGameSTM :: Game a -> TVar GameState -> STM (Either GameError a)
 runGameSTM g tv = do
   s <- readTVar tv

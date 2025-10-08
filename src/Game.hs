@@ -120,11 +120,3 @@ setStock pid com qty = do
   let stocks' = Map.insert com qty stocks
   modify' $ \game ->
     game { gameStocks = Map.insert pid stocks' (gameStocks game) }
-
---------------------------------------------------------------------------------
--- Utility Functions
-
-unlessM :: Monad m => m Bool -> m () -> m ()
-unlessM pre f = do
-  p <- pre
-  unless p f
