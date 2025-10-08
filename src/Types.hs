@@ -180,9 +180,6 @@ runGameSTM g tv = do
 data Event
   = JoinEvent    PlayerId -- ^ A new player is joining
   | DrawEvent    PlayerId -- ^ Draw a tile
-  | PlayEvent    PlayerId Tile -- ^ Put a tile on the board
-  | DiscardEvent PlayerId Tile -- ^ Discard an unusable tile
-  | ReturnEvent  PlayerId Tile -- ^ Return a pile to the pool
   | MoveEvent    PlayerId Tile TileLoc TileLoc -- ^ Move a tile between zones
   | MarkerEvent  PlayerId Company (Maybe Tile) -- ^ Place or remove a company marker tile
   | MoneyEvent   PlayerId Money -- ^ Take or return money
@@ -193,9 +190,6 @@ data Event
 eventSource :: Event -> PlayerId
 eventSource (JoinEvent    pid)       = pid
 eventSource (DrawEvent    pid)       = pid
-eventSource (PlayEvent    pid _)     = pid
-eventSource (DiscardEvent pid _)     = pid
-eventSource (ReturnEvent  pid _)     = pid
 eventSource (MoveEvent    pid _ _ _) = pid
 eventSource (MarkerEvent  pid _ _)   = pid
 eventSource (MoneyEvent   pid _)     = pid
@@ -209,21 +203,6 @@ instance ToJSON Event where
   toJSON (DrawEvent pid) =
     object [ "type" .= String "draw"
            , "source" .= pid
-           ]
-  toJSON (PlayEvent pid tile) =
-    object [ "type" .= String "play"
-           , "source" .= pid
-           , "tile" .= tile
-           ]
-  toJSON (DiscardEvent pid tile) =
-    object [ "type" .= String "discard"
-           , "source" .= pid
-           , "tile" .= tile
-           ]
-  toJSON (ReturnEvent pid tile) =
-    object [ "type" .= String "return"
-           , "source" .= pid
-           , "tile" .= tile
            ]
   toJSON (MoveEvent pid tile srcZone dstZone) =
     object [ "type" .= String "move"
@@ -257,12 +236,6 @@ instance FromJSON Event where
     case evType of
       "join"    -> return $ JoinEvent pid
       "draw"    -> return $ DrawEvent pid
-      "play"    -> PlayEvent pid
-                   <$> obj .: "tile"
-      "discard" -> DiscardEvent pid
-                   <$> obj .: "tile"
-      "return"  -> ReturnEvent pid
-                   <$> obj .: "tile"
       "move"    -> MoveEvent pid
                    <$> obj .: "tile"
                    <*> obj .: "src"

@@ -19,15 +19,6 @@ doDraw pid = do
   setTileStatus tile (Hand pid)
   return tile
 
-doPlay :: PlayerId -> Tile -> Game ()
-doPlay pid = moveTile (Hand pid) Play
-
-doDiscard :: PlayerId -> Tile -> Game ()
-doDiscard pid = moveTile (Hand pid) Discard
-
-doReturn :: PlayerId -> Tile -> Game ()
-doReturn pid = moveTile (Hand pid) Pool
-
 doMarker :: PlayerId -> Company -> Maybe Tile -> Game ()
 doMarker _ com mtile = modify' $ \game -> game
   { gameMarkers = Map.alter (const mtile) com (gameMarkers game) }
