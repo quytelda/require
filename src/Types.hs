@@ -23,6 +23,7 @@ import           Data.Sequence           (Seq, (|>))
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import qualified Data.Text.Read          as Read
+import           Data.Word
 import           GHC.Generics
 import           Servant
 import           System.Random
@@ -306,8 +307,11 @@ renderTileZone Discard    = "the discard pile"
 --------------------------------------------------------------------------------
 -- Server Types
 
+type ServerId = Word32
+
 data ServerState = ServerState
-  { pidSource     :: TVar PlayerId -- ^ A source for unique 'PlayerId's
+  { serverId      :: ServerId -- ^ A random id to help clients recognize new sessions
+  , pidSource     :: TVar PlayerId -- ^ A source for unique 'PlayerId's
   , clientOffsets :: TVar (Map PlayerId Int) -- ^ How many messages has each client seen?
   , eventHistory  :: TVar (Seq Event) -- ^ History of successful game events
   , gameState     :: TVar GameState -- ^ The current state of the game
@@ -316,7 +320,8 @@ data ServerState = ServerState
 newServerState :: IO ServerState
 newServerState =
   ServerState
-  <$> newTVarIO 0
+  <$> randomIO
+  <*> newTVarIO 0
   <*> newTVarIO mempty
   <*> newTVarIO mempty
   <*> (newGameState >>= newTVarIO)

@@ -26,7 +26,9 @@ type CompanyParam = RequiredParam "company" Company
 type AmountParam = RequiredParam "amount" Int
 type EventReq = Post '[JSON] NoContent
 
-type RequireAPI = "register" :> Get '[JSON] PlayerId
+type RequireAPI
+  =    "serverid" :> Get '[JSON] ServerId
+  :<|> "register" :> Get '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
   :> (    "events" :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
@@ -58,7 +60,8 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
 
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
-  handleRegister s
+  handleServerId s
+  :<|> handleRegister s
   :<|> (\pid -> handleEvents s pid
          :<|> handleReset s pid
          :<|> handleHand s pid
@@ -80,6 +83,14 @@ runServer = run 11073 . serve requireAPI . requireServer
 
 publish :: ServerState -> Event -> STM ()
 publish = appendHistory
+
+-- | An endpoint to retrieve the server's ID.
+--
+-- Clients should store this ID alongside their own player ID so that
+-- when a new server is created, they will be able to tell that the
+-- player ID has expired because the server ID no longer matches.
+handleServerId :: ServerState -> Handler ServerId
+handleServerId ServerState{..} = return serverId
 
 -- | Handle the new client registration endpoint.
 --
