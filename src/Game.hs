@@ -1,4 +1,21 @@
-module Game where
+module Game
+  ( -- * Event Handling
+    doDraw
+  , moveTile
+  , doMarker
+  , doMoney
+  , doStock
+
+    -- * Game State Helpers
+  , tilesInZone
+  , setTileStatus
+  , grabFromPool
+  , getHand
+  , getMoney
+  , setMoney
+  , getStock
+  , setStock
+  ) where
 
 import           Control.Monad
 import           Control.Monad.Except
@@ -18,6 +35,13 @@ doDraw pid = do
   tile <- grabFromPool >>= maybe (throwError NotEnoughTiles) pure
   setTileStatus tile (Hand pid)
   return tile
+
+moveTile :: TileZone -> TileZone -> Tile -> Game ()
+moveTile fromZone toZone tile = do
+  mstatus <- gets $ Map.lookup tile . gameTiles
+  case mstatus of
+    Just loc | loc == fromZone -> setTileStatus tile toZone
+    _                          -> throwError $ InvalidMove tile fromZone toZone
 
 doMarker :: PlayerId -> Company -> Maybe Tile -> Game ()
 doMarker _ com mtile = modify' $ \game -> game
@@ -74,13 +98,6 @@ getHand :: PlayerId -> Game [Tile]
 getHand pid = do
   tileMap <- gets gameTiles
   return $ Map.keys $ Map.filter (== Hand pid) tileMap
-
-moveTile :: TileZone -> TileZone -> Tile -> Game ()
-moveTile fromZone toZone tile = do
-  mstatus <- gets $ Map.lookup tile . gameTiles
-  case mstatus of
-    Just loc | loc == fromZone -> setTileStatus tile toZone
-    _                          -> throwError $ InvalidMove tile fromZone toZone
 
 getMoney :: PlayerId -> Game Money
 getMoney pid =
