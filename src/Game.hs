@@ -54,10 +54,10 @@ doStock pid com amount = do
 --------------------------------------------------------------------------------
 -- Managing Game State
 
-tilesInZone :: TileLoc -> GameState -> [Tile]
+tilesInZone :: TileZone -> GameState -> [Tile]
 tilesInZone zone = Map.keys . Map.filter (== zone) . gameTiles
 
-setTileStatus :: Tile -> TileLoc -> Game ()
+setTileStatus :: Tile -> TileZone -> Game ()
 setTileStatus tile status = modify' $ \game ->
   game { gameTiles = Map.insert tile status (gameTiles game) }
 
@@ -75,7 +75,7 @@ getHand pid = do
   tileMap <- gets gameTiles
   return $ Map.keys $ Map.filter (== Hand pid) tileMap
 
-moveTile :: TileLoc -> TileLoc -> Tile -> Game ()
+moveTile :: TileZone -> TileZone -> Tile -> Game ()
 moveTile fromZone toZone tile = do
   mstatus <- gets $ Map.lookup tile . gameTiles
   case mstatus of

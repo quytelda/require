@@ -40,8 +40,8 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
        :> Post '[JSON] Tile
      :<|> "move"
        :> TileParam
-       :> RequiredParam "src" TileLoc
-       :> RequiredParam "dst" TileLoc
+       :> RequiredParam "src" TileZone
+       :> RequiredParam "dst" TileZone
        :> EventReq
      :<|> "marker"
        :> CompanyParam
@@ -154,8 +154,8 @@ handleMove
   :: ServerState
   -> PlayerId
   -> Tile
-  -> TileLoc
-  -> TileLoc
+  -> TileZone
+  -> TileZone
   -> Handler NoContent
 handleMove server pid tile src dst =
   handleGameEvent server (moveTile src dst tile) (MoveEvent pid tile src dst)

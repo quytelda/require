@@ -69,34 +69,34 @@ allTiles :: [Tile]
 allTiles = Tile <$> [1..12] <*> ['A'..'I']
 
 -- | Which game zone is a tile currently in?
-data TileLoc
+data TileZone
   = Pool          -- ^ The drawing pool
   | Hand PlayerId -- ^ In a player's hand
   | Play          -- ^ On the game board
   | Discard       -- ^ Discarded and unusable
   deriving (Eq, Show)
 
-parseTileLoc :: Text -> Either String TileLoc
-parseTileLoc "pool"    = pure Pool
-parseTileLoc "play"    = pure Play
-parseTileLoc "discard" = pure Discard
-parseTileLoc txt =
+parseTileZone :: Text -> Either String TileZone
+parseTileZone "pool"    = pure Pool
+parseTileZone "play"    = pure Play
+parseTileZone "discard" = pure Discard
+parseTileZone txt =
   fmap (Hand . fst)
   . maybe (Left "invalid tile zone") Read.decimal
   . T.stripPrefix "hand/"
   $ txt
 
-instance ToJSON TileLoc where
+instance ToJSON TileZone where
   toJSON Pool       = String "pool"
   toJSON (Hand pid) = String $ T.pack $ "hand/" <> show pid
   toJSON Play       = String "play"
   toJSON Discard    = String "discard"
 
-instance FromJSON TileLoc where
-  parseJSON = withText "TileLoc" $ either fail pure . parseTileLoc
+instance FromJSON TileZone where
+  parseJSON = withText "TileZone" $ either fail pure . parseTileZone
 
-instance FromHttpApiData TileLoc where
-  parseQueryParam = first T.pack . parseTileLoc
+instance FromHttpApiData TileZone where
+  parseQueryParam = first T.pack . parseTileZone
 
 -- | Companies in which players may invest
 data Company
@@ -132,7 +132,7 @@ type Stocks = Map Company Int
 -- | The complete set of information necessary to describe the game
 -- state
 data GameState = GameState
-  { gameTiles   :: Map Tile TileLoc -- ^ The current state of each game tile
+  { gameTiles   :: Map Tile TileZone -- ^ The current state of each game tile
   , gameMarkers :: Map Company Tile -- ^ The current state of each company marker
   , gameMoney   :: Map PlayerId Money -- ^ The distribution of money
   , gameStocks  :: Map PlayerId Stocks -- ^ The distribution of stocks
@@ -180,7 +180,7 @@ runGameSTM g tv = do
 data Event
   = JoinEvent   PlayerId -- ^ A new player is joining
   | DrawEvent   PlayerId -- ^ Draw a tile
-  | MoveEvent   PlayerId Tile TileLoc TileLoc -- ^ Move a tile between zones
+  | MoveEvent   PlayerId Tile TileZone TileZone -- ^ Move a tile between zones
   | MarkerEvent PlayerId Company (Maybe Tile) -- ^ Place or remove a company marker tile
   | MoneyEvent  PlayerId Money -- ^ Take or return money
   | StockEvent  PlayerId Company Int -- ^ Take or return stocks
@@ -258,7 +258,7 @@ data GameError
   = NotEnoughTiles -- ^ The bank doesn't have enough tiles
   | NotEnoughMoney PlayerId -- ^ Insufficient funds for a transaction
   | NotEnoughStock PlayerId Company -- ^ Insufficient stock for a transaction
-  | InvalidMove Tile TileLoc TileLoc -- ^ This tile movement is invalid
+  | InvalidMove Tile TileZone TileZone -- ^ This tile movement is invalid
   deriving (Eq, Show)
 
 instance Exception GameError
@@ -280,9 +280,9 @@ describeGameError = toLazyByteString . describeGameError'
       "cannot move tile "
       <> renderTile tile
       <> " from "
-      <> renderTileLoc fromZone
+      <> renderTileZone fromZone
       <> " to "
-      <> renderTileLoc toZone
+      <> renderTileZone toZone
 
 gameErrorToServerError :: GameError -> ServerError
 gameErrorToServerError err = err400 { errBody = describeGameError err }
@@ -297,11 +297,11 @@ renderCompany = string8 . show
 renderTile :: Tile -> Builder
 renderTile (Tile col row) = intDec col <> char8 row
 
-renderTileLoc :: TileLoc -> Builder
-renderTileLoc Pool       = "the pool"
-renderTileLoc (Hand pid) = renderPid pid <> "'s hand"
-renderTileLoc Play       = "the board"
-renderTileLoc Discard    = "the discard pile"
+renderTileZone :: TileZone -> Builder
+renderTileZone Pool       = "the pool"
+renderTileZone (Hand pid) = renderPid pid <> "'s hand"
+renderTileZone Play       = "the board"
+renderTileZone Discard    = "the discard pile"
 
 --------------------------------------------------------------------------------
 -- Server Types
