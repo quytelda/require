@@ -3,7 +3,40 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 
-module Types where
+module Types
+  ( -- * Basic Game Types
+    Money
+  , PlayerId
+  , Tile
+  , TileZone(..)
+  , Company(..)
+
+    -- * Game State
+  , Stocks
+  , GameState(..)
+  , defaultGame
+  , newGameState
+  , Game
+  , runGame
+  , runGameSTM
+
+    -- * Events
+  , Event(..)
+  , eventSource
+  , GameError(..)
+  , gameErrorToServerError
+
+    -- * Server Types
+  , ServerId
+  , ServerState(..)
+  , newServerState
+  , newPlayerId
+  , appendHistory
+
+  -- * Utility Functions
+  , textBuilderToJSON
+  , putBuilderLn
+  ) where
 
 import           Control.Concurrent.STM
 import           Control.Exception
@@ -182,6 +215,9 @@ runGameSTM g tv = do
   case runGame g s of
     Left err      -> return (Left err)
     Right (a, s') -> writeTVar tv s' $> Right a
+
+--------------------------------------------------------------------------------
+-- Events
 
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.
