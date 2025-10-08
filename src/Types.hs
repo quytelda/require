@@ -15,14 +15,19 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.ByteString.Builder
-import           Data.ByteString.Lazy    (LazyByteString)
+import           Data.ByteString.Lazy       (LazyByteString)
 import           Data.Functor
-import           Data.Map.Strict         (Map)
-import qualified Data.Map.Strict         as Map
-import           Data.Sequence           (Seq, (|>))
-import           Data.Text               (Text)
-import qualified Data.Text               as T
-import qualified Data.Text.Read          as Read
+import           Data.Map.Strict            (Map)
+import qualified Data.Map.Strict            as Map
+import           Data.Sequence              (Seq, (|>))
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import qualified Data.Text.Lazy             as TL
+import qualified Data.Text.Lazy.Builder     as TB
+import qualified Data.Text.Lazy.Builder.Int as TBI
+import qualified Data.Text.Lazy.IO          as TLIO
+import qualified Data.Text.Read             as Read
+
 import           Data.Word
 import           GHC.Generics
 import           Servant
@@ -57,7 +62,10 @@ parseTile text1 = do
   return $ Tile col row
 
 instance ToJSON Tile where
-  toJSON (Tile col row) = String $ T.pack $ show col <> [row]
+  toJSON (Tile col row) =
+    textBuilderToJSON
+    $ TBI.decimal col
+    <> TB.singleton row
 
 instance FromJSON Tile where
   parseJSON = withText "Tile" $ either fail pure . parseTile
@@ -89,7 +97,7 @@ parseTileZone txt =
 
 instance ToJSON TileZone where
   toJSON Pool       = String "pool"
-  toJSON (Hand pid) = String $ T.pack $ "hand/" <> show pid
+  toJSON (Hand pid) = textBuilderToJSON $ "hand/" <> TBI.decimal pid
   toJSON Play       = String "play"
   toJSON Discard    = String "discard"
 
@@ -335,3 +343,12 @@ newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
 appendHistory :: ServerState -> Event -> STM ()
 appendHistory ServerState{..} =
   modifyTVar' eventHistory . flip (|>)
+
+--------------------------------------------------------------------------------
+-- Utility Functions
+
+textBuilderToJSON :: TB.Builder -> Value
+textBuilderToJSON = String . TL.toStrict . TB.toLazyText
+
+putBuilderLn :: TB.Builder -> IO ()
+putBuilderLn = TLIO.putStrLn . TB.toLazyText

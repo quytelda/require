@@ -9,11 +9,12 @@ module Server where
 import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
-import qualified Data.Map.Strict          as Map
-import           Data.Sequence            (Seq)
-import qualified Data.Sequence            as Seq
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as TIO
+import qualified Data.Map.Strict            as Map
+import           Data.Sequence              (Seq)
+import qualified Data.Sequence              as Seq
+import           Data.Text.Lazy.Builder
+import qualified Data.Text.Lazy.Builder.Int as TBI
+
 import           Network.Wai.Handler.Warp
 import           Servant
 
@@ -102,7 +103,9 @@ handleRegister server = liftIO $ do
     pid <- newPlayerId server
     modifyTVar' (clientOffsets server) (Map.insert pid 0)
     return pid
-  putStrLn $ "New client registered with PID: " <> show pid
+  putBuilderLn
+    $ "New client joined with PID: "
+    <> TBI.decimal pid
   return pid
 
 -- | Handle the endpoint that clients poll for published events.
@@ -152,7 +155,9 @@ handleGameEvent server handler event = do
     runGameSTM handler (gameState server) >>= \case
       Left err  -> return $ throwError $ gameErrorToServerError err
       Right res -> publish server event $> return res
-  liftIO $ TIO.putStrLn $ "Event: " <> T.pack (show event)
+  liftIO $ putBuilderLn
+    $ "Event: "
+    <> fromString (show event)
   return result
 
 handleDraw

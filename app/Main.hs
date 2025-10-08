@@ -1,7 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main (main) where
+
+import qualified Data.Text.Lazy.Builder.Int as TBI
 
 import           Server
 import           Types
 
 main :: IO ()
-main = newServerState >>= runServer
+main = do
+  server <- newServerState
+  putBuilderLn
+    $ "Starting new server with server ID: "
+    <> TBI.decimal (serverId server)
+  runServer server
