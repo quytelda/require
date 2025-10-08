@@ -178,22 +178,22 @@ runGameSTM g tv = do
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.
 data Event
-  = JoinEvent    PlayerId -- ^ A new player is joining
-  | DrawEvent    PlayerId -- ^ Draw a tile
-  | MoveEvent    PlayerId Tile TileLoc TileLoc -- ^ Move a tile between zones
-  | MarkerEvent  PlayerId Company (Maybe Tile) -- ^ Place or remove a company marker tile
-  | MoneyEvent   PlayerId Money -- ^ Take or return money
-  | StockEvent   PlayerId Company Int -- ^ Take or return stocks
+  = JoinEvent   PlayerId -- ^ A new player is joining
+  | DrawEvent   PlayerId -- ^ Draw a tile
+  | MoveEvent   PlayerId Tile TileLoc TileLoc -- ^ Move a tile between zones
+  | MarkerEvent PlayerId Company (Maybe Tile) -- ^ Place or remove a company marker tile
+  | MoneyEvent  PlayerId Money -- ^ Take or return money
+  | StockEvent  PlayerId Company Int -- ^ Take or return stocks
   deriving (Eq, Show)
 
 -- | From which player did this event originate?
 eventSource :: Event -> PlayerId
-eventSource (JoinEvent    pid)       = pid
-eventSource (DrawEvent    pid)       = pid
-eventSource (MoveEvent    pid _ _ _) = pid
-eventSource (MarkerEvent  pid _ _)   = pid
-eventSource (MoneyEvent   pid _)     = pid
-eventSource (StockEvent   pid _ _)   = pid
+eventSource (JoinEvent   pid)       = pid
+eventSource (DrawEvent   pid)       = pid
+eventSource (MoveEvent   pid _ _ _) = pid
+eventSource (MarkerEvent pid _ _)   = pid
+eventSource (MoneyEvent  pid _)     = pid
+eventSource (StockEvent  pid _ _)   = pid
 
 instance ToJSON Event where
   toJSON (JoinEvent pid) =

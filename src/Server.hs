@@ -36,11 +36,24 @@ type RequireAPI = "register" :> Get '[JSON] PlayerId
      )
   :<|> "marker" :> Capture "Company" Company :> Get '[JSON] (Maybe Tile)
   :<|> Capture "PlayerId" PlayerId
-  :> (    "draw"    :> Post '[JSON] Tile
-     :<|> "move"    :> TileParam    :> RequiredParam "src" TileLoc :> RequiredParam "dst" TileLoc :> EventReq
-     :<|> "marker"  :> CompanyParam :> QueryParam "tile" Tile :> EventReq
-     :<|> "money"   :> AmountParam  :> EventReq
-     :<|> "stock"   :> CompanyParam :> AmountParam :> EventReq
+  :> ("draw"
+       :> Post '[JSON] Tile
+     :<|> "move"
+       :> TileParam
+       :> RequiredParam "src" TileLoc
+       :> RequiredParam "dst" TileLoc
+       :> EventReq
+     :<|> "marker"
+       :> CompanyParam
+       :> QueryParam "tile" Tile
+       :> EventReq
+     :<|> "money"
+       :> AmountParam
+       :> EventReq
+     :<|> "stock"
+       :> CompanyParam
+       :> AmountParam
+       :> EventReq
      )
 
 requireServer :: ServerState -> Server RequireAPI
