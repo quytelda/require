@@ -28,7 +28,7 @@ type EventReq = Post '[JSON] NoContent
 
 type RequireAPI
   =    "serverid" :> Get '[JSON] ServerId
-  :<|> "register" :> Get '[JSON] PlayerId
+  :<|> "join" :> Get '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
   :> (    "events" :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
@@ -61,7 +61,7 @@ type RequireAPI
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleServerId s
-  :<|> handleRegister s
+  :<|> handleJoin s
   :<|> (\pid -> handleEvents s pid
          :<|> handleReset s pid
          :<|> handleHand s pid
@@ -96,15 +96,15 @@ handleServerId ServerState{..} = return serverId
 --
 -- Generates a new player ID which is unique for this server and
 -- allocates resources for managing this client.
-handleRegister :: ServerState -> Handler PlayerId
-handleRegister server = liftIO $ do
+handleJoin :: ServerState -> Handler PlayerId
+handleJoin server = liftIO $ do
   pid <- atomically $ do
     pid <- newPlayerId server
     modifyTVar' (clientOffsets server) (Map.insert pid 0)
+    publish server (JoinEvent pid)
     return pid
-  putBuilderLn
-    $ "New client joined with PID: "
-    <> TBI.decimal pid
+  putBuilderLn $ "New client allocated with PlayerID: " <> TBI.decimal pid
+  putBuilderLn $ displayEvent $ JoinEvent pid
   return pid
 
 -- | Handle the endpoint that clients poll for published events.
