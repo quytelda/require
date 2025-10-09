@@ -23,6 +23,7 @@ module Types
     -- * Events
   , Event(..)
   , eventSource
+  , displayEvent
   , GameError(..)
   , gameErrorToServerError
 
@@ -57,6 +58,7 @@ import qualified Data.Text                  as T
 import qualified Data.Text.Lazy             as TL
 import qualified Data.Text.Lazy.Builder     as TB
 import qualified Data.Text.Lazy.Builder.Int as TBI
+import           Data.Text.Lazy.Encoding    (encodeUtf8Builder)
 import qualified Data.Text.Lazy.IO          as TLIO
 import qualified Data.Text.Read             as Read
 
@@ -77,6 +79,9 @@ type PlayerId = Int
 data Tile = Tile !Int !Char
   deriving (Eq, Ord, Show)
 
+renderTile :: Tile -> TB.Builder
+renderTile (Tile col row) = TBI.decimal col <> TB.singleton row
+
 parseTile :: Text -> Either String Tile
 parseTile text1 = do
   (col, text2) <- Read.decimal text1
@@ -94,10 +99,7 @@ parseTile text1 = do
   return $ Tile col row
 
 instance ToJSON Tile where
-  toJSON (Tile col row) =
-    textBuilderToJSON
-    $ TBI.decimal col
-    <> TB.singleton row
+  toJSON = textBuilderToJSON . renderTile
 
 instance FromJSON Tile where
   parseJSON = withText "Tile" $ either fail pure . parseTile
@@ -117,6 +119,12 @@ data TileZone
   | Discard       -- ^ Discarded and unusable
   deriving (Eq, Show)
 
+renderTileZone :: TileZone -> TB.Builder
+renderTileZone Pool       = "pool"
+renderTileZone (Hand pid) = "hand/" <> TBI.decimal pid
+renderTileZone Play       = "play"
+renderTileZone Discard    = "discard"
+
 parseTileZone :: Text -> Either String TileZone
 parseTileZone "pool"    = pure Pool
 parseTileZone "play"    = pure Play
@@ -128,10 +136,7 @@ parseTileZone txt =
   $ txt
 
 instance ToJSON TileZone where
-  toJSON Pool       = String "pool"
-  toJSON (Hand pid) = textBuilderToJSON $ "hand/" <> TBI.decimal pid
-  toJSON Play       = String "play"
-  toJSON Discard    = String "discard"
+  toJSON = textBuilderToJSON . renderTileZone
 
 instance FromJSON TileZone where
   parseJSON = withText "TileZone" $ either fail pure . parseTileZone
@@ -149,6 +154,15 @@ data Company
   | Century
   | Important
   deriving (Enum, Eq, Show, Ord, Generic)
+
+renderCompany :: Company -> TB.Builder
+renderCompany Triangle  = "Triangle"
+renderCompany Love      = "Love"
+renderCompany Armenian  = "Armenian"
+renderCompany Fiesta    = "Fiesta"
+renderCompany Wonder    = "Wonder"
+renderCompany Century   = "Century"
+renderCompany Important = "Important"
 
 instance ToJSON Company
 instance FromJSON Company
@@ -288,6 +302,28 @@ instance FromJSON Event where
                    <*> obj .: "amount"
       _         -> fail "invalid event type"
 
+displayEvent :: Event -> TB.Builder
+displayEvent event =
+  "[EVENT/" <> TBI.decimal (eventSource event) <> "]: "
+  <> displayEvent' event
+  where
+    displayEvent' (JoinEvent   _) = "JOIN"
+    displayEvent' (DrawEvent   _) = "DRAW"
+    displayEvent' (MoveEvent   _ tile src dst) =
+      "MOVE " <> renderTile tile
+      <> " from " <> renderTileZone src
+      <> " to " <> renderTileZone dst
+    displayEvent' (MarkerEvent _ com mtile) =
+      "MARKER for " <> renderCompany com
+      <> case mtile of
+           Just tile -> " to " <> renderTile tile
+           Nothing   -> " removed"
+    displayEvent' (MoneyEvent  _ amount) =
+      "MONEY transfer of " <> TBI.decimal amount
+    displayEvent' (StockEvent  _ com amount) =
+      "STOCK transfer of " <> TBI.decimal amount
+      <> " " <> renderCompany com
+
 --------------------------------------------------------------------------------
 -- Errors
 
@@ -312,34 +348,23 @@ describeGameError = toLazyByteString . describeGameError'
     describeGameError' (NotEnoughStock pid com) =
       renderPid pid
       <> " doesn't have enough "
-      <> renderCompany com
+      <> (tl2bs . renderCompany) com
       <> " stock"
-    describeGameError' (InvalidMove tile fromZone toZone) =
+    describeGameError' (InvalidMove tile src dst) =
       "cannot move tile "
-      <> renderTile tile
+      <> (tl2bs . renderTile) tile
       <> " from "
-      <> renderTileZone fromZone
+      <> (tl2bs . renderTileZone) src
       <> " to "
-      <> renderTileZone toZone
+      <> (tl2bs . renderTileZone) dst
+
+    renderPid 0   = "the bank"
+    renderPid pid = "player #" <> intDec pid
+
+    tl2bs = encodeUtf8Builder . TB.toLazyText
 
 gameErrorToServerError :: GameError -> ServerError
 gameErrorToServerError err = err400 { errBody = describeGameError err }
-
-renderPid :: PlayerId -> Builder
-renderPid 0   = "the bank"
-renderPid pid = "player #" <> intDec pid
-
-renderCompany :: Company -> Builder
-renderCompany = string8 . show
-
-renderTile :: Tile -> Builder
-renderTile (Tile col row) = intDec col <> char8 row
-
-renderTileZone :: TileZone -> Builder
-renderTileZone Pool       = "the pool"
-renderTileZone (Hand pid) = renderPid pid <> "'s hand"
-renderTileZone Play       = "the board"
-renderTileZone Discard    = "the discard pile"
 
 --------------------------------------------------------------------------------
 -- Server Types

@@ -12,7 +12,6 @@ import           Data.Functor
 import qualified Data.Map.Strict            as Map
 import           Data.Sequence              (Seq)
 import qualified Data.Sequence              as Seq
-import           Data.Text.Lazy.Builder
 import qualified Data.Text.Lazy.Builder.Int as TBI
 
 import           Network.Wai.Handler.Warp
@@ -155,9 +154,7 @@ handleGameEvent server handler event = do
     runGameSTM handler (gameState server) >>= \case
       Left err  -> return $ throwError $ gameErrorToServerError err
       Right res -> publish server event $> return res
-  liftIO $ putBuilderLn
-    $ "Event: "
-    <> fromString (show event)
+  liftIO $ putBuilderLn $ displayEvent event
   return result
 
 handleDraw
