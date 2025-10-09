@@ -28,7 +28,7 @@ type EventReq = Post '[JSON] NoContent
 
 type RequireAPI
   =    "serverid" :> Get '[JSON] ServerId
-  :<|> "join" :> Get '[JSON] PlayerId
+  :<|> "join" :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
   :> (    "events" :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
