@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TupleSections         #-}
 
 module Types
   ( -- * Basic Game Types
@@ -16,9 +17,8 @@ module Types
   , GameState(..)
   , defaultGame
   , newGameState
-  , Game
-  , runGame
-  , runGameSTM
+  , Game(..)
+  , throwGame
 
     -- * Events
   , Event(..)
@@ -39,6 +39,7 @@ module Types
   , putBuilderLn
   ) where
 
+import           Control.Applicative
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad
@@ -212,17 +213,27 @@ newGameState = do
   return defaultGame { gameRNG = gen }
 
 -- | A monad for game-related actions
-type Game = StateT GameState (Except GameError)
+newtype Game a = Game { runGame :: TVar GameState -> STM a }
 
-runGame :: Game a -> GameState -> Either GameError (a, GameState)
-runGame g = runExcept . runStateT g
+instance Functor Game where
+  fmap f (Game run) = Game $ fmap f . run
 
-runGameSTM :: Game a -> TVar GameState -> STM (Either GameError a)
-runGameSTM g tv = do
-  s <- readTVar tv
-  case runGame g s of
-    Left err      -> return (Left err)
-    Right (a, s') -> writeTVar tv s' $> Right a
+instance Applicative Game where
+  pure = Game . const . pure
+  (Game runF) <*> (Game runX) = Game $ liftA2 (<*>) runF runX
+
+instance Monad Game where
+  return = pure
+  (Game runX) >>= f = Game $ \tvar -> do
+    x <- runX tvar
+    runGame (f x) tvar
+
+instance MonadState GameState Game where
+  get = Game readTVar
+  put = Game . flip writeTVar
+
+throwGame :: GameError -> Game a
+throwGame = Game . const . throwSTM
 
 --------------------------------------------------------------------------------
 -- Events

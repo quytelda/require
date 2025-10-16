@@ -32,7 +32,7 @@ import           Types
 
 doDraw :: PlayerId -> Game Tile
 doDraw pid = do
-  tile <- grabFromPool >>= maybe (throwError NotEnoughTiles) pure
+  tile <- grabFromPool >>= maybe (throwGame NotEnoughTiles) pure
   setTileStatus tile (Hand pid)
   return tile
 
@@ -41,7 +41,7 @@ moveTile fromZone toZone tile = do
   mstatus <- gets $ Map.lookup tile . gameTiles
   case mstatus of
     Just loc | loc == fromZone -> setTileStatus tile toZone
-    _                          -> throwError $ InvalidMove tile fromZone toZone
+    _                          -> throwGame $ InvalidMove tile fromZone toZone
 
 doMarker :: PlayerId -> Company -> Maybe Tile -> Game ()
 doMarker _ com mtile = modify' $ \game -> game
@@ -53,10 +53,10 @@ doMoney pid amount = do
   playerBal <- getMoney pid
 
   unless (bankBal >= amount) $
-    throwError $ NotEnoughMoney 0
+    throwGame $ NotEnoughMoney 0
 
   unless (playerBal >= negate amount) $
-    throwError $ NotEnoughMoney pid
+    throwGame $ NotEnoughMoney pid
 
   setMoney 0   (bankBal - amount)
   setMoney pid (playerBal + amount)
@@ -67,10 +67,10 @@ doStock pid com amount = do
   playerQty <- getStock pid com
 
   unless (bankQty >= amount) $
-    throwError $ NotEnoughStock 0 com
+    throwGame $ NotEnoughStock 0 com
 
   unless (playerQty >= negate amount) $
-    throwError $ NotEnoughStock pid com
+    throwGame $ NotEnoughStock pid com
 
   setStock 0   com (bankQty - amount)
   setStock pid com (playerQty + amount)

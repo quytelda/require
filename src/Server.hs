@@ -149,13 +149,16 @@ handleGameEvent
   -> Game a
   -> Event
   -> Handler a
-handleGameEvent server handler event = do
-  result <- join . liftIO . atomically $
-    runGameSTM handler (gameState server) >>= \case
-      Left err  -> return $ throwError $ gameErrorToServerError err
-      Right res -> publish server event $> return res
-  liftIO $ putBuilderLn $ displayEvent event
-  return result
+handleGameEvent server handler event =
+  stmToHandler (runGame handler (gameState server) <* publish server event)
+  <* (liftIO . putBuilderLn . displayEvent) event
+  where
+    stmToHandler =
+      join
+      . liftIO
+      . atomically
+      . flip catchSTM (pure . throwError . gameErrorToServerError)
+      . fmap pure
 
 handleDraw
   :: ServerState
