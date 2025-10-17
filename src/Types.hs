@@ -421,26 +421,31 @@ appendHistory ServerState{..} =
 
 -- | Get the next unread event in the history for the given player.
 --
--- If no new events are available, we wait.
-popHistory :: ServerState -> PlayerId -> STM Event
+-- If the 'PlayerId' requested is not registered, 'Nothing' is
+-- returned. If no new events are available, we wait.
+popHistory :: ServerState -> PlayerId -> STM (Maybe Event)
 popHistory ServerState{..} pid = do
-  positions <- readTVar clientOffsets
   history <- readTVar eventHistory
-  offset <- maybe (throwSTM $ UnknownPid pid) pure $ Map.lookup pid positions
-  case history !? offset of
-    Nothing -> retry
-    Just event -> do
-      modifyTVar' clientOffsets $ Map.adjust (+1) pid
-      return event
+  positions <- readTVar clientOffsets
+  case Map.lookup pid positions of
+    Nothing -> return Nothing
+    Just offset ->
+      case history !? offset of
+        Nothing -> retry
+        Just event -> do
+          modifyTVar' clientOffsets $ Map.adjust (+1) pid
+          return $ Just event
 
 -- | A SourceT that streams events from the event history one a time
 -- as they arrive.
 sourceHistory :: ServerState -> PlayerId -> SourceT IO Event
 sourceHistory server pid = fromStepT loop
   where
-    loop = Source.Effect $ atomically $ catchSTM
-      (Source.Yield <$> popHistory server pid <*> pure loop)
-      (\e -> return $ Source.Error $ show (e :: ServiceError))
+    loop = Source.Effect $ do
+      mevent <- atomically $ popHistory server pid
+      return $ case mevent of
+        Nothing -> Source.Stop
+        Just event -> Source.Yield event loop
 
 --------------------------------------------------------------------------------
 -- Utility Functions
