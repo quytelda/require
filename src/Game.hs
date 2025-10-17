@@ -18,7 +18,6 @@ module Game
   ) where
 
 import           Control.Monad
-import           Control.Monad.Except
 import           Control.Monad.State
 import           Data.Functor
 import qualified Data.Map.Strict      as Map
