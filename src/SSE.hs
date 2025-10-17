@@ -3,7 +3,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 
-module SSE where
+module SSE
+  ( SSE
+  , EventStream
+  , EventGet
+  , sourceToEventStream
+  ) where
 
 import           Data.Aeson
 import           Data.Text          (Text)
