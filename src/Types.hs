@@ -24,8 +24,11 @@ module Types
   , Event(..)
   , eventSource
   , displayEvent
+
+    -- * Errors
   , GameError(..)
   , gameErrorToServerError
+  , ServiceError(..)
 
     -- * Server Types
   , ServerId
@@ -33,6 +36,7 @@ module Types
   , newServerState
   , newPlayerId
   , appendHistory
+  , sourceHistory
 
   -- * Utility Functions
   , textBuilderToJSON
@@ -50,10 +54,9 @@ import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.ByteString.Builder
 import           Data.ByteString.Lazy       (LazyByteString)
-import           Data.Functor
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
-import           Data.Sequence              (Seq, (|>))
+import           Data.Sequence              (Seq, (|>), (!?))
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Text.Lazy             as TL
@@ -62,6 +65,7 @@ import qualified Data.Text.Lazy.Builder.Int as TBI
 import           Data.Text.Lazy.Encoding    (encodeUtf8Builder)
 import qualified Data.Text.Lazy.IO          as TLIO
 import qualified Data.Text.Read             as Read
+import           Servant.Types.SourceT      as Source
 
 import           Data.Word
 import           GHC.Generics
@@ -377,6 +381,12 @@ describeGameError = toLazyByteString . describeGameError'
 gameErrorToServerError :: GameError -> ServerError
 gameErrorToServerError err = err400 { errBody = describeGameError err }
 
+data ServiceError
+  = UnknownPid PlayerId
+  deriving (Eq, Show)
+
+instance Exception ServiceError
+
 --------------------------------------------------------------------------------
 -- Server Types
 
@@ -408,6 +418,29 @@ newPlayerId ServerState{..} = modifyTVar' pidSource (+1) *> readTVar pidSource
 appendHistory :: ServerState -> Event -> STM ()
 appendHistory ServerState{..} =
   modifyTVar' eventHistory . flip (|>)
+
+-- | Get the next unread event in the history for the given player.
+--
+-- If no new events are available, we wait.
+popHistory :: ServerState -> PlayerId -> STM Event
+popHistory ServerState{..} pid = do
+  positions <- readTVar clientOffsets
+  history <- readTVar eventHistory
+  offset <- maybe (throwSTM $ UnknownPid pid) pure $ Map.lookup pid positions
+  case history !? offset of
+    Nothing -> retry
+    Just event -> do
+      modifyTVar' clientOffsets $ Map.adjust (+1) pid
+      return event
+
+-- | A SourceT that streams events from the event history one a time
+-- as they arrive.
+sourceHistory :: ServerState -> PlayerId -> SourceT IO Event
+sourceHistory server pid = fromStepT loop
+  where
+    loop = Source.Effect $ atomically $ catchSTM
+      (Source.Yield <$> popHistory server pid <*> pure loop)
+      (\e -> return $ Source.Error $ show (e :: ServiceError))
 
 --------------------------------------------------------------------------------
 -- Utility Functions

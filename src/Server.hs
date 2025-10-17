@@ -18,6 +18,7 @@ import           Network.Wai.Handler.Warp
 import           Servant
 
 import           Game
+import           SSE
 import           Types
 
 type RequiredParam = QueryParam' '[Required, Strict]
@@ -30,7 +31,8 @@ type RequireAPI
   =    "serverid" :> Get '[JSON] ServerId
   :<|> "join" :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
-  :> (    "events" :> Get '[JSON] (Seq Event)
+  :> (    "events" :> EventGet Event
+     :<|> "poll"   :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
      -- state queries
      :<|> "hand"   :> Get '[JSON] [Tile]
@@ -63,6 +65,7 @@ requireServer s =
   handleServerId s
   :<|> handleJoin s
   :<|> (\pid -> handleEvents s pid
+         :<|> handlePoll s pid
          :<|> handleReset s pid
          :<|> handleHand s pid
          :<|> handleBoard s pid
@@ -111,8 +114,8 @@ handleJoin server = liftIO $ do
 --
 -- This endpoint should be long-polled and will respond with a list of
 -- zero or more events as they are available.
-handleEvents :: ServerState -> PlayerId -> Handler (Seq Event)
-handleEvents ServerState{..} pid = liftIO $ atomically $ do
+handlePoll :: ServerState -> PlayerId -> Handler (Seq Event)
+handlePoll ServerState{..} pid = liftIO $ atomically $ do
   positions <- readTVar clientOffsets
   case Map.lookup pid positions of
     Nothing -> return mempty
@@ -120,6 +123,12 @@ handleEvents ServerState{..} pid = liftIO $ atomically $ do
       history <- readTVar eventHistory
       modifyTVar' clientOffsets $ Map.insert pid (length history)
       return $ Seq.drop offset history
+
+handleEvents
+  :: ServerState
+  -> PlayerId
+  -> Handler (EventStream Event)
+handleEvents server pid = return $ sourceToEventStream $ sourceHistory server pid
 
 handleReset :: ServerState -> PlayerId -> Handler NoContent
 handleReset ServerState{..} pid = liftIO . atomically $
