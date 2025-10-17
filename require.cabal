@@ -27,6 +27,7 @@ library
   exposed-modules:
       Game
       Server
+      SSE
       Types
   other-modules:
       Paths_require
