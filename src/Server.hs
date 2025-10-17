@@ -36,6 +36,8 @@ type RequireAPI
      -- state queries
      :<|> "hand"   :> Get '[JSON] [Tile]
      :<|> "board"  :> Get '[JSON] [Tile]
+     :<|> "state"  :> Get '[JSON] GameState
+     :<|> "players" :> Get '[JSON] [PlayerId]
      )
   :<|> "marker" :> Capture "Company" Company :> Get '[JSON] (Maybe Tile)
   :<|> Capture "PlayerId" PlayerId
@@ -68,6 +70,8 @@ requireServer s =
          :<|> handleReset s pid
          :<|> handleHand s pid
          :<|> handleBoard s pid
+         :<|> handleState s pid
+         :<|> handlePlayers s pid
        )
   :<|> handleQueryMarker s
   :<|> (\pid -> handleDraw s pid
@@ -142,6 +146,12 @@ handleBoard :: ServerState -> PlayerId -> Handler [Tile]
 handleBoard ServerState{..} _ =
   tilesInZone Play
   <$> liftIO (readTVarIO gameState)
+
+handleState :: ServerState -> PlayerId -> Handler GameState
+handleState ServerState{..} _ = liftIO $ readTVarIO gameState
+
+handlePlayers :: ServerState -> PlayerId -> Handler [PlayerId]
+handlePlayers ServerState{..} _ = liftIO $ Map.keys <$> readTVarIO clientOffsets
 
 handleQueryMarker :: ServerState -> Company -> Handler (Maybe Tile)
 handleQueryMarker ServerState{..} com =

@@ -109,6 +109,9 @@ instance ToJSON Tile where
 instance FromJSON Tile where
   parseJSON = withText "Tile" $ either fail pure . parseTile
 
+instance ToJSONKey Tile where
+  toJSONKey = toJSONKeyText (TL.toStrict . TB.toLazyText . renderTile)
+
 instance FromHttpApiData Tile where
   parseQueryParam = first T.pack . parseTile
 
@@ -171,6 +174,7 @@ renderCompany Important = "Important"
 
 instance ToJSON Company
 instance FromJSON Company
+instance ToJSONKey Company
 
 instance FromHttpApiData Company where
   parseQueryParam "Triangle"  = Right Triangle
@@ -198,6 +202,14 @@ data GameState = GameState
   , gameStocks  :: Map PlayerId Stocks -- ^ The distribution of stocks
   , gameRNG     :: StdGen -- ^ A source of random numbers for drawing
   } deriving (Eq, Show)
+
+instance ToJSON GameState where
+  toJSON GameState{..} = object
+    [ "tiles" .= toJSON gameTiles
+    , "markers" .= toJSON gameMarkers
+    , "money" .= toJSON gameMoney
+    , "stocks" .= toJSON gameStocks
+    ]
 
 defaultGame :: GameState
 defaultGame = GameState
