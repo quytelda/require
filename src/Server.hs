@@ -27,7 +27,7 @@ type EventReq = Post '[JSON] NoContent
 
 type RequireAPI
   =    "serverid" :> Get '[JSON] ServerId
-  :<|> "range"
+  :<|> "events"
        :> QueryParam "start" Int
        :> QueryParam "end" Int
        :> EventGet EventRecord
