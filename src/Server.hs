@@ -26,17 +26,18 @@ type AmountParam = RequiredParam "amount" Int
 type EventReq = Post '[JSON] NoContent
 
 type RequireAPI
+  -- State Queries
   =    "serverid" :> Get '[JSON] ServerId
+  :<|> "state"    :> Get '[JSON] GameState
+  :<|> "players"  :> Get '[JSON] [PlayerId]
+
+  -- Event Broadcast
   :<|> "events"
        :> QueryParam "start" Int
        :> QueryParam "end" Int
        :> EventGet EventRecord
 
-  -- State Queries
-  :<|> "state"   :> Get '[JSON] GameState
-  :<|> "players" :> Get '[JSON] [PlayerId]
-
-  -- Event Queries
+  -- Event Requests
   :<|> "join" :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
        :> (    "draw"
@@ -62,9 +63,9 @@ type RequireAPI
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleServerId s
-  :<|> handleRange s
   :<|> handleState s
   :<|> handlePlayers s
+  :<|> handleEvents s
   :<|> handleJoin s
   :<|> (\pid -> handleDraw s pid
          :<|> handleMove s pid
@@ -82,6 +83,9 @@ runServer = run 11073 . serve requireAPI . requireServer
 publish :: ServerState -> Event -> STM ()
 publish = appendHistory
 
+--------------------------------------------------------------------------------
+-- Servant Endpoint Handlers
+
 -- | An endpoint to retrieve the server's ID.
 --
 -- Clients should store this ID alongside their own player ID so that
@@ -89,6 +93,25 @@ publish = appendHistory
 -- player ID has expired because the server ID no longer matches.
 handleServerId :: ServerState -> Handler ServerId
 handleServerId ServerState{..} = return serverId
+
+handleState :: ServerState -> Handler GameState
+handleState ServerState{..} = liftIO $ readTVarIO gameState
+
+handlePlayers :: ServerState -> Handler [PlayerId]
+handlePlayers ServerState{..} = liftIO $ Map.keys <$> readTVarIO clientOffsets
+
+handleEvents
+  :: ServerState
+  -> Maybe Int
+  -> Maybe Int
+  -> Handler (EventStream EventRecord)
+handleEvents server mstart mend =
+  let start = fromMaybe 0 mstart
+      end = fromMaybe (start + 8) mend
+  in return $ sourceToEventStream $ sourceHistoryRange server start end
+
+--------------------------------------------------------------------------------
+-- Handlers for Game Event Requests
 
 -- | Handle the new client registration endpoint.
 --
@@ -104,25 +127,6 @@ handleJoin server = liftIO $ do
   putBuilderLn $ "New client allocated with PlayerID: " <> TBI.decimal pid
   putBuilderLn $ displayEvent $ JoinEvent pid
   return pid
-
-handleRange
-  :: ServerState
-  -> Maybe Int
-  -> Maybe Int
-  -> Handler (EventStream EventRecord)
-handleRange server mstart mend =
-  let start = fromMaybe 0 mstart
-      end = fromMaybe (start + 8) mend
-  in return $ sourceToEventStream $ sourceHistoryRange server start end
-
-handleState :: ServerState -> Handler GameState
-handleState ServerState{..} = liftIO $ readTVarIO gameState
-
-handlePlayers :: ServerState -> Handler [PlayerId]
-handlePlayers ServerState{..} = liftIO $ Map.keys <$> readTVarIO clientOffsets
-
---------------------------------------------------------------------------------
--- Handlers for Game Events
 
 handleGameEvent
   :: ServerState
@@ -144,7 +148,8 @@ handleDraw
   :: ServerState
   -> PlayerId
   -> Handler Tile
-handleDraw server pid = handleGameEvent server (doDraw pid) (DrawEvent pid)
+handleDraw server pid =
+  handleGameEvent server (doDraw pid) (DrawEvent pid)
 
 handleMove
   :: ServerState
