@@ -80,9 +80,6 @@ requireAPI = Proxy
 runServer :: ServerState -> IO ()
 runServer = run 11073 . serve requireAPI . requireServer
 
-publish :: ServerState -> Event -> STM ()
-publish = appendHistory
-
 --------------------------------------------------------------------------------
 -- Servant Endpoint Handlers
 
