@@ -21,6 +21,7 @@ module Types
   , throwGame
   , GameAction
   , runGameAction
+  , withEvent
 
     -- * Events
   , Event(..)
@@ -238,7 +239,7 @@ newGameState = do
   gen <- getStdGen
   return defaultGame { gameRNG = gen }
 
--- | A monad for game-related actions
+-- | A monad for game-related computations
 newtype Game a = Game { runGame :: TVar GameState -> STM a }
 
 instance Functor Game where
@@ -262,14 +263,18 @@ throwGame :: GameError -> Game a
 throwGame = Game . const . throwSTM
 
 -- | A game action that generates an event.
-type GameAction a = Game (a, Event)
+type GameAction a = Game (Event, a)
 
+-- | Run an action and publish the event it generates.
 runGameAction :: ServerState -> GameAction a -> STM a
 runGameAction server action = do
-  (result, event) <- runGame action (gameState server)
+  (event, result) <- runGame action (gameState server)
   appendHistory server event
   return result
 
+-- | Utility function for writing 'GameActions'.
+withEvent :: Event -> Game a -> GameAction a
+withEvent = fmap . (,)
 
 --------------------------------------------------------------------------------
 -- Events
