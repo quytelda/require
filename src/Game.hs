@@ -2,7 +2,7 @@ module Game
   ( -- * Event Handling
     doJoin
   , doDraw
-  , moveTile
+  , doMove
   , doMarker
   , doMoney
   , doStock
@@ -33,31 +33,36 @@ import           Types
 
 doJoin :: PlayerId -> Game ()
 doJoin pid = do
-  players <- gets gamePlayers
-  when (pid `IntSet.member` players) $
+  exists <- isValidPlayer pid
+  when exists $
     throwGame $ InvalidPlayer pid
 
-  modify' $ \game -> game { gamePlayers = IntSet.insert pid players }
+  modify' $ \game -> game { gamePlayers = IntSet.insert pid (gamePlayers game) }
 
 doDraw :: PlayerId -> Game Tile
 doDraw pid = do
+  checkPlayerId pid
   tile <- grabFromPool >>= maybe (throwGame NotEnoughTiles) pure
   setTileStatus tile (Hand pid)
   return tile
 
-moveTile :: TileZone -> TileZone -> Tile -> Game ()
-moveTile fromZone toZone tile = do
+doMove :: PlayerId -> TileZone -> TileZone -> Tile -> Game ()
+doMove pid fromZone toZone tile = do
+  checkPlayerId pid
   mstatus <- gets $ Map.lookup tile . gameTiles
   case mstatus of
     Just loc | loc == fromZone -> setTileStatus tile toZone
     _                          -> throwGame $ InvalidMove tile fromZone toZone
 
 doMarker :: PlayerId -> Company -> Maybe Tile -> Game ()
-doMarker _ com mtile = modify' $ \game -> game
-  { gameMarkers = Map.alter (const mtile) com (gameMarkers game) }
+doMarker pid com mtile = do
+  checkPlayerId pid
+  modify' $ \game ->
+    game { gameMarkers = Map.alter (const mtile) com (gameMarkers game) }
 
 doMoney :: PlayerId -> Money -> Game ()
 doMoney pid amount = do
+  checkPlayerId pid
   bankBal   <- getMoney 0
   playerBal <- getMoney pid
 
@@ -72,6 +77,7 @@ doMoney pid amount = do
 
 doStock :: PlayerId -> Company -> Int -> Game ()
 doStock pid com amount = do
+  checkPlayerId pid
   bankQty   <- getStock 0   com
   playerQty <- getStock pid com
 
@@ -86,6 +92,15 @@ doStock pid com amount = do
 
 --------------------------------------------------------------------------------
 -- Managing Game State
+
+isValidPlayer :: PlayerId -> Game Bool
+isValidPlayer pid = gets $ IntSet.member pid . gamePlayers
+
+checkPlayerId :: PlayerId -> Game ()
+checkPlayerId pid = do
+  valid <- isValidPlayer pid
+  unless valid $
+    throwGame $ InvalidPlayer pid
 
 tilesInZone :: TileZone -> GameState -> [Tile]
 tilesInZone zone = Map.keys . Map.filter (== zone) . gameTiles

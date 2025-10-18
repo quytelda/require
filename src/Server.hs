@@ -9,7 +9,6 @@ import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
 import           Data.IntSet                (IntSet)
-import qualified Data.Map.Strict            as Map
 import           Data.Maybe
 import qualified Data.Text.Lazy.Builder.Int as TBI
 
@@ -160,7 +159,7 @@ handleMove
   -> TileZone
   -> Handler NoContent
 handleMove server pid tile src dst =
-  handleGameEvent server (moveTile src dst tile) (MoveEvent pid tile src dst)
+  handleGameEvent server (doMove pid src dst tile) (MoveEvent pid tile src dst)
   $> NoContent
 
 handleMarker
