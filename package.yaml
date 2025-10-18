@@ -57,6 +57,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - require
+    when:
+    - condition: false
+      other-modules: Paths_require
 
 tests:
   require-test:
