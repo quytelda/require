@@ -24,7 +24,6 @@ module Types
   , Event(..)
   , eventSource
   , displayEvent
-  , EventRecord(..)
 
     -- * Errors
   , GameError(..)
@@ -36,9 +35,10 @@ module Types
   , ServerState(..)
   , newServerState
   , newPlayerId
+    -- ** Event History
   , appendHistory
   , sourceHistoryRange
-  , sourceHistory
+  , EventRecord(..)
 
   -- * Utility Functions
   , textBuilderToJSON
@@ -58,7 +58,7 @@ import           Data.ByteString.Builder
 import           Data.ByteString.Lazy       (LazyByteString)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
-import           Data.Sequence              (Seq, (!?), (|>))
+import           Data.Sequence              (Seq, (|>))
 import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
@@ -450,34 +450,6 @@ sourceHistoryRange server start end = fromStepT (go start)
          | otherwise = Source.Effect $ do
              event <- nthEvent server n
              return $ Source.Yield (EventRecord n event) (go (n+1))
-
--- | Get the next unread event in the history for the given player.
---
--- If the 'PlayerId' requested is not registered, 'Nothing' is
--- returned. If no new events are available, we wait.
-popHistory :: ServerState -> PlayerId -> STM (Maybe Event)
-popHistory ServerState{..} pid = do
-  history <- readTVar eventHistory
-  positions <- readTVar clientOffsets
-  case Map.lookup pid positions of
-    Nothing -> return Nothing
-    Just offset ->
-      case history !? offset of
-        Nothing -> retry
-        Just event -> do
-          modifyTVar' clientOffsets $ Map.adjust (+1) pid
-          return $ Just event
-
--- | A SourceT that streams events from the event history one a time
--- as they arrive.
-sourceHistory :: ServerState -> PlayerId -> SourceT IO Event
-sourceHistory server pid = fromStepT loop
-  where
-    loop = Source.Effect $ do
-      mevent <- atomically $ popHistory server pid
-      return $ case mevent of
-        Nothing    -> Source.Stop
-        Just event -> Source.Yield event loop
 
 -- | An event plus its index (eventId) in the event history.
 data EventRecord = EventRecord

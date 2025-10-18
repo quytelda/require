@@ -10,8 +10,6 @@ import           Control.Monad.Except
 import           Data.Functor
 import qualified Data.Map.Strict            as Map
 import           Data.Maybe
-import           Data.Sequence              (Seq)
-import qualified Data.Sequence              as Seq
 import qualified Data.Text.Lazy.Builder.Int as TBI
 
 import           Network.Wai.Handler.Warp
@@ -29,54 +27,45 @@ type EventReq = Post '[JSON] NoContent
 
 type RequireAPI
   =    "serverid" :> Get '[JSON] ServerId
+  :<|> "range"
+       :> QueryParam "start" Int
+       :> QueryParam "end" Int
+       :> EventGet EventRecord
+
+  -- State Queries
+  :<|> "state"   :> Get '[JSON] GameState
+  :<|> "players" :> Get '[JSON] [PlayerId]
+
+  -- Event Queries
   :<|> "join" :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
-  :> (    "events" :> EventGet Event
-     :<|> "range"  :> QueryParam "start" Int :> QueryParam "end" Int :> EventGet EventRecord
-     :<|> "poll"   :> Get '[JSON] (Seq Event)
-     :<|> "reset"  :> Get '[JSON] NoContent
-     -- state queries
-     :<|> "hand"   :> Get '[JSON] [Tile]
-     :<|> "board"  :> Get '[JSON] [Tile]
-     :<|> "state"  :> Get '[JSON] GameState
-     :<|> "players" :> Get '[JSON] [PlayerId]
-     )
-  :<|> "marker" :> Capture "Company" Company :> Get '[JSON] (Maybe Tile)
-  :<|> Capture "PlayerId" PlayerId
-  :> ("draw"
-       :> Post '[JSON] Tile
-     :<|> "move"
-       :> TileParam
-       :> RequiredParam "src" TileZone
-       :> RequiredParam "dst" TileZone
-       :> EventReq
-     :<|> "marker"
-       :> CompanyParam
-       :> QueryParam "tile" Tile
-       :> EventReq
-     :<|> "money"
-       :> AmountParam
-       :> EventReq
-     :<|> "stock"
-       :> CompanyParam
-       :> AmountParam
-       :> EventReq
-     )
+       :> (    "draw"
+            :> Post '[JSON] Tile
+          :<|> "move"
+            :> TileParam
+            :> RequiredParam "src" TileZone
+            :> RequiredParam "dst" TileZone
+            :> EventReq
+          :<|> "marker"
+            :> CompanyParam
+            :> QueryParam "tile" Tile
+            :> EventReq
+          :<|> "money"
+            :> AmountParam
+            :> EventReq
+          :<|> "stock"
+            :> CompanyParam
+            :> AmountParam
+            :> EventReq
+          )
 
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleServerId s
+  :<|> handleRange s
+  :<|> handleState s
+  :<|> handlePlayers s
   :<|> handleJoin s
-  :<|> (\pid -> handleEvents s pid
-         :<|> handleRange s pid
-         :<|> handlePoll s pid
-         :<|> handleReset s pid
-         :<|> handleHand s pid
-         :<|> handleBoard s pid
-         :<|> handleState s pid
-         :<|> handlePlayers s pid
-       )
-  :<|> handleQueryMarker s
   :<|> (\pid -> handleDraw s pid
          :<|> handleMove s pid
          :<|> handleMarker s pid
@@ -116,62 +105,21 @@ handleJoin server = liftIO $ do
   putBuilderLn $ displayEvent $ JoinEvent pid
   return pid
 
--- | Handle the endpoint that clients poll for published events.
---
--- This endpoint should be long-polled and will respond with a list of
--- zero or more events as they are available.
-handlePoll :: ServerState -> PlayerId -> Handler (Seq Event)
-handlePoll ServerState{..} pid = liftIO $ atomically $ do
-  positions <- readTVar clientOffsets
-  case Map.lookup pid positions of
-    Nothing -> return mempty
-    Just offset -> do
-      history <- readTVar eventHistory
-      modifyTVar' clientOffsets $ Map.insert pid (length history)
-      return $ Seq.drop offset history
-
-handleEvents
-  :: ServerState
-  -> PlayerId
-  -> Handler (EventStream Event)
-handleEvents server pid = return $ sourceToEventStream $ sourceHistory server pid
-
 handleRange
   :: ServerState
-  -> PlayerId
   -> Maybe Int
   -> Maybe Int
   -> Handler (EventStream EventRecord)
-handleRange server _ mstart mend =
+handleRange server mstart mend =
   let start = fromMaybe 0 mstart
       end = fromMaybe (start + 8) mend
   in return $ sourceToEventStream $ sourceHistoryRange server start end
 
-handleReset :: ServerState -> PlayerId -> Handler NoContent
-handleReset ServerState{..} pid = liftIO . atomically $
-  modifyTVar' clientOffsets (Map.insert pid 0) $> NoContent
+handleState :: ServerState -> Handler GameState
+handleState ServerState{..} = liftIO $ readTVarIO gameState
 
-handleHand :: ServerState -> PlayerId -> Handler [Tile]
-handleHand ServerState{..} pid =
-  tilesInZone (Hand pid)
-  <$> liftIO (readTVarIO gameState)
-
-handleBoard :: ServerState -> PlayerId -> Handler [Tile]
-handleBoard ServerState{..} _ =
-  tilesInZone Play
-  <$> liftIO (readTVarIO gameState)
-
-handleState :: ServerState -> PlayerId -> Handler GameState
-handleState ServerState{..} _ = liftIO $ readTVarIO gameState
-
-handlePlayers :: ServerState -> PlayerId -> Handler [PlayerId]
-handlePlayers ServerState{..} _ = liftIO $ Map.keys <$> readTVarIO clientOffsets
-
-handleQueryMarker :: ServerState -> Company -> Handler (Maybe Tile)
-handleQueryMarker ServerState{..} com =
-  Map.lookup com
-  . gameMarkers
-  <$> liftIO (readTVarIO gameState)
+handlePlayers :: ServerState -> Handler [PlayerId]
+handlePlayers ServerState{..} = liftIO $ Map.keys <$> readTVarIO clientOffsets
 
 --------------------------------------------------------------------------------
 -- Handlers for Game Events
