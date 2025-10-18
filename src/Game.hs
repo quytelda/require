@@ -31,22 +31,23 @@ import           Types
 --------------------------------------------------------------------------------
 -- Event Handling
 
-doJoin :: PlayerId -> Game ()
+doJoin :: PlayerId -> GameAction ()
 doJoin pid = do
   exists <- isValidPlayer pid
   when exists $
     throwGame $ InvalidPlayer pid
 
   modify' $ \game -> game { gamePlayers = IntSet.insert pid (gamePlayers game) }
+  return ((), JoinEvent pid)
 
-doDraw :: PlayerId -> Game Tile
+doDraw :: PlayerId -> GameAction Tile
 doDraw pid = do
   checkPlayerId pid
   tile <- grabFromPool >>= maybe (throwGame NotEnoughTiles) pure
   setTileStatus tile (Hand pid)
-  return tile
+  return (tile, DrawEvent pid)
 
-doMove :: PlayerId -> TileZone -> TileZone -> Tile -> Game ()
+doMove :: PlayerId -> TileZone -> TileZone -> Tile -> GameAction ()
 doMove pid fromZone toZone tile = do
   checkPlayerId pid
   mstatus <- gets $ Map.lookup tile . gameTiles
@@ -54,13 +55,17 @@ doMove pid fromZone toZone tile = do
     Just loc | loc == fromZone -> setTileStatus tile toZone
     _                          -> throwGame $ InvalidMove tile fromZone toZone
 
-doMarker :: PlayerId -> Company -> Maybe Tile -> Game ()
+  return ((), MoveEvent pid tile fromZone toZone)
+
+doMarker :: PlayerId -> Company -> Maybe Tile -> GameAction ()
 doMarker pid com mtile = do
   checkPlayerId pid
   modify' $ \game ->
     game { gameMarkers = Map.alter (const mtile) com (gameMarkers game) }
 
-doMoney :: PlayerId -> Money -> Game ()
+  return ((), MarkerEvent pid com mtile)
+
+doMoney :: PlayerId -> Money -> GameAction ()
 doMoney pid amount = do
   checkPlayerId pid
   bankBal   <- getMoney 0
@@ -75,7 +80,9 @@ doMoney pid amount = do
   setMoney 0   (bankBal - amount)
   setMoney pid (playerBal + amount)
 
-doStock :: PlayerId -> Company -> Int -> Game ()
+  return ((), MoneyEvent pid amount)
+
+doStock :: PlayerId -> Company -> Int -> GameAction ()
 doStock pid com amount = do
   checkPlayerId pid
   bankQty   <- getStock 0   com
@@ -89,6 +96,8 @@ doStock pid com amount = do
 
   setStock 0   com (bankQty - amount)
   setStock pid com (playerQty + amount)
+
+  return ((), StockEvent pid com amount)
 
 --------------------------------------------------------------------------------
 -- Managing Game State

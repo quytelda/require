@@ -121,35 +121,29 @@ handleJoin :: ServerState -> Handler PlayerId
 handleJoin server = liftIO $ do
   pid <- atomically $ do
     pid <- newPlayerId server
-    runGame (doJoin pid) (gameState server)
-    publish server (JoinEvent pid)
+    runGameAction server (doJoin pid)
     return pid
   putBuilderLn $ "New client allocated with PlayerID: " <> TBI.decimal pid
-  putBuilderLn $ displayEvent $ JoinEvent pid
   return pid
 
-handleGameEvent
+handleGameAction
   :: ServerState
-  -> Game a
-  -> Event
+  -> GameAction a
   -> Handler a
-handleGameEvent server handler event =
-  stmToHandler (runGame handler (gameState server) <* publish server event)
-  <* (liftIO . putBuilderLn . displayEvent) event
-  where
-    stmToHandler =
-      join
-      . liftIO
-      . atomically
-      . flip catchSTM (pure . throwError . gameErrorToServerError)
-      . fmap pure
+handleGameAction server =
+  join
+  . liftIO
+  . atomically
+  . flip catchSTM (pure . throwError . gameErrorToServerError)
+  . fmap pure
+  . runGameAction server
 
 handleDraw
   :: ServerState
   -> PlayerId
   -> Handler Tile
 handleDraw server pid =
-  handleGameEvent server (doDraw pid) (DrawEvent pid)
+  handleGameAction server (doDraw pid)
 
 handleMove
   :: ServerState
@@ -159,7 +153,7 @@ handleMove
   -> TileZone
   -> Handler NoContent
 handleMove server pid tile src dst =
-  handleGameEvent server (doMove pid src dst tile) (MoveEvent pid tile src dst)
+  handleGameAction server (doMove pid src dst tile)
   $> NoContent
 
 handleMarker
@@ -169,7 +163,7 @@ handleMarker
   -> Maybe Tile
   -> Handler NoContent
 handleMarker server pid com mtile =
-  handleGameEvent server (doMarker pid com mtile) (MarkerEvent pid com mtile)
+  handleGameAction server (doMarker pid com mtile)
   $> NoContent
 
 handleMoney
@@ -178,7 +172,7 @@ handleMoney
   -> Int
   -> Handler NoContent
 handleMoney server pid amount =
-  handleGameEvent server (doMoney pid amount) (MoneyEvent pid amount)
+  handleGameAction server (doMoney pid amount)
   $> NoContent
 
 handleStock
@@ -188,5 +182,5 @@ handleStock
   -> Int
   -> Handler NoContent
 handleStock server pid com amount =
-  handleGameEvent server (doStock pid com amount) (StockEvent pid com amount)
+  handleGameAction server (doStock pid com amount)
   $> NoContent

@@ -19,6 +19,8 @@ module Types
   , newGameState
   , Game(..)
   , throwGame
+  , GameAction
+  , runGameAction
 
     -- * Events
   , Event(..)
@@ -38,6 +40,7 @@ module Types
   , appendHistory
   , sourceHistoryRange
   , EventRecord(..)
+  , logEvents
 
   -- * Utility Functions
   , textBuilderToJSON
@@ -258,6 +261,16 @@ instance MonadState GameState Game where
 throwGame :: GameError -> Game a
 throwGame = Game . const . throwSTM
 
+-- | A game action that generates an event.
+type GameAction a = Game (a, Event)
+
+runGameAction :: ServerState -> GameAction a -> STM a
+runGameAction server action = do
+  (result, event) <- runGame action (gameState server)
+  appendHistory server event
+  return result
+
+
 --------------------------------------------------------------------------------
 -- Events
 
@@ -459,6 +472,10 @@ data EventRecord = EventRecord
 
 instance ToJSON EventRecord
 instance FromJSON EventRecord
+
+logEvents :: ServerState -> IO ()
+logEvents server =
+  mapM_ (nthEvent server >=> putBuilderLn . displayEvent) [0..]
 
 --------------------------------------------------------------------------------
 -- Utility Functions

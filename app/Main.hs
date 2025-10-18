@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import           Control.Concurrent.Async
 import qualified Data.Text.Lazy.Builder.Int as TBI
 
 import           Server
@@ -13,4 +14,6 @@ main = do
   putBuilderLn
     $ "Starting new server with server ID: "
     <> TBI.decimal (serverId server)
-  runServer server
+  concurrently_
+    (runServer server)
+    (logEvents server)
