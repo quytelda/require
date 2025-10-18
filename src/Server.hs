@@ -8,6 +8,7 @@ module Server where
 import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
+import           Data.IntSet                (IntSet)
 import qualified Data.Map.Strict            as Map
 import           Data.Maybe
 import qualified Data.Text.Lazy.Builder.Int as TBI
@@ -29,7 +30,7 @@ type RequireAPI
   -- State Queries
   =    "serverid" :> Get '[JSON] ServerId
   :<|> "state"    :> Get '[JSON] GameState
-  :<|> "players"  :> Get '[JSON] [PlayerId]
+  :<|> "players"  :> Get '[JSON] IntSet
 
   -- Event Broadcast
   :<|> "events"
@@ -97,8 +98,8 @@ handleServerId ServerState{..} = return serverId
 handleState :: ServerState -> Handler GameState
 handleState ServerState{..} = liftIO $ readTVarIO gameState
 
-handlePlayers :: ServerState -> Handler [PlayerId]
-handlePlayers ServerState{..} = liftIO $ Map.keys <$> readTVarIO clientOffsets
+handlePlayers :: ServerState -> Handler IntSet
+handlePlayers ServerState{..} = liftIO $ gamePlayers <$> readTVarIO gameState
 
 handleEvents
   :: ServerState
@@ -121,7 +122,7 @@ handleJoin :: ServerState -> Handler PlayerId
 handleJoin server = liftIO $ do
   pid <- atomically $ do
     pid <- newPlayerId server
-    modifyTVar' (clientOffsets server) (Map.insert pid 0)
+    runGame (doJoin pid) (gameState server)
     publish server (JoinEvent pid)
     return pid
   putBuilderLn $ "New client allocated with PlayerID: " <> TBI.decimal pid

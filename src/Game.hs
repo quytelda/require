@@ -1,6 +1,7 @@
 module Game
   ( -- * Event Handling
-    doDraw
+    doJoin
+  , doDraw
   , moveTile
   , doMarker
   , doMoney
@@ -20,7 +21,8 @@ module Game
 import           Control.Monad
 import           Control.Monad.State
 import           Data.Functor
-import qualified Data.Map.Strict      as Map
+import qualified Data.IntSet         as IntSet
+import qualified Data.Map.Strict     as Map
 import           Data.Maybe
 import           System.Random
 
@@ -28,6 +30,14 @@ import           Types
 
 --------------------------------------------------------------------------------
 -- Event Handling
+
+doJoin :: PlayerId -> Game ()
+doJoin pid = do
+  players <- gets gamePlayers
+  when (pid `IntSet.member` players) $
+    throwGame $ InvalidPlayer pid
+
+  modify' $ \game -> game { gamePlayers = IntSet.insert pid players }
 
 doDraw :: PlayerId -> Game Tile
 doDraw pid = do

@@ -28,7 +28,6 @@ module Types
     -- * Errors
   , GameError(..)
   , gameErrorToServerError
-  , ServiceError(..)
 
     -- * Server Types
   , ServerId
@@ -56,6 +55,8 @@ import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.ByteString.Builder
 import           Data.ByteString.Lazy       (LazyByteString)
+import           Data.IntSet                (IntSet)
+import qualified Data.IntSet                as IntSet
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import           Data.Sequence              (Seq, (|>))
@@ -199,7 +200,8 @@ type Stocks = Map Company Int
 -- | The complete set of information necessary to describe the game
 -- state
 data GameState = GameState
-  { gameTiles   :: Map Tile TileZone -- ^ The current state of each game tile
+  { gamePlayers :: IntSet -- ^ The set of active 'PlayerId's
+  , gameTiles   :: Map Tile TileZone -- ^ The current state of each game tile
   , gameMarkers :: Map Company Tile -- ^ The current state of each company marker
   , gameMoney   :: Map PlayerId Money -- ^ The distribution of money
   , gameStocks  :: Map PlayerId Stocks -- ^ The distribution of stocks
@@ -208,7 +210,8 @@ data GameState = GameState
 
 instance ToJSON GameState where
   toJSON GameState{..} = object
-    [ "tiles" .= toJSON gameTiles
+    [ "players" .= toJSON gamePlayers
+    , "tiles" .= toJSON gameTiles
     , "markers" .= toJSON gameMarkers
     , "money" .= toJSON gameMoney
     , "stocks" .= toJSON gameStocks
@@ -216,7 +219,8 @@ instance ToJSON GameState where
 
 defaultGame :: GameState
 defaultGame = GameState
-  { gameTiles   = Map.fromList $ map (,Pool) allTiles
+  { gamePlayers = IntSet.empty
+  , gameTiles   = Map.fromList $ map (,Pool) allTiles
   , gameMarkers = Map.empty
   , gameMoney   = Map.singleton 0 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
   , gameStocks  = Map.singleton 0 defaultBankStocks
@@ -359,7 +363,8 @@ displayEvent event =
 
 -- | Game-related Errors
 data GameError
-  = NotEnoughTiles -- ^ The bank doesn't have enough tiles
+  = InvalidPlayer PlayerId -- ^ This 'PlayerId' doesn't exist or conflicts
+  | NotEnoughTiles -- ^ The bank doesn't have enough tiles
   | NotEnoughMoney PlayerId -- ^ Insufficient funds for a transaction
   | NotEnoughStock PlayerId Company -- ^ Insufficient stock for a transaction
   | InvalidMove Tile TileZone TileZone -- ^ This tile movement is invalid
@@ -370,6 +375,9 @@ instance Exception GameError
 describeGameError :: GameError -> LazyByteString
 describeGameError = toLazyByteString . describeGameError'
   where
+    describeGameError' (InvalidPlayer pid) =
+      "invalid player id: "
+      <> intDec pid
     describeGameError' NotEnoughTiles =
       "not enough tiles in the drawing pool"
     describeGameError' (NotEnoughMoney pid) =
@@ -396,23 +404,16 @@ describeGameError = toLazyByteString . describeGameError'
 gameErrorToServerError :: GameError -> ServerError
 gameErrorToServerError err = err400 { errBody = describeGameError err }
 
-data ServiceError
-  = UnknownPid PlayerId
-  deriving (Eq, Show)
-
-instance Exception ServiceError
-
 --------------------------------------------------------------------------------
 -- Server Types
 
 type ServerId = Word32
 
 data ServerState = ServerState
-  { serverId      :: ServerId -- ^ A random id to help clients recognize new sessions
-  , pidSource     :: TVar PlayerId -- ^ A source for unique 'PlayerId's
-  , clientOffsets :: TVar (Map PlayerId Int) -- ^ How many messages has each client seen?
-  , eventHistory  :: TVar (Seq Event) -- ^ History of successful game events
-  , gameState     :: TVar GameState -- ^ The current state of the game
+  { serverId     :: ServerId -- ^ A random id to help clients recognize new sessions
+  , pidSource    :: TVar PlayerId -- ^ A source for unique 'PlayerId's
+  , eventHistory :: TVar (Seq Event) -- ^ History of successful game events
+  , gameState    :: TVar GameState -- ^ The current state of the game
   }
 
 newServerState :: IO ServerState
@@ -420,7 +421,6 @@ newServerState =
   ServerState
   <$> randomIO
   <*> newTVarIO 0
-  <*> newTVarIO mempty
   <*> newTVarIO mempty
   <*> (newGameState >>= newTVarIO)
 
