@@ -9,6 +9,7 @@ import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
 import qualified Data.Map.Strict            as Map
+import           Data.Maybe
 import           Data.Sequence              (Seq)
 import qualified Data.Sequence              as Seq
 import qualified Data.Text.Lazy.Builder.Int as TBI
@@ -31,6 +32,7 @@ type RequireAPI
   :<|> "join" :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
   :> (    "events" :> EventGet Event
+     :<|> "range"  :> QueryParam "start" Int :> QueryParam "end" Int :> EventGet Event
      :<|> "poll"   :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
      -- state queries
@@ -66,6 +68,7 @@ requireServer s =
   handleServerId s
   :<|> handleJoin s
   :<|> (\pid -> handleEvents s pid
+         :<|> handleRange s pid
          :<|> handlePoll s pid
          :<|> handleReset s pid
          :<|> handleHand s pid
@@ -132,6 +135,17 @@ handleEvents
   -> PlayerId
   -> Handler (EventStream Event)
 handleEvents server pid = return $ sourceToEventStream $ sourceHistory server pid
+
+handleRange
+  :: ServerState
+  -> PlayerId
+  -> Maybe Int
+  -> Maybe Int
+  -> Handler (EventStream Event)
+handleRange server _ mstart mend =
+  let start = fromMaybe 0 mstart
+      end = fromMaybe (start + 8) mend
+  in return $ sourceToEventStream $ sourceHistoryRange server start end
 
 handleReset :: ServerState -> PlayerId -> Handler NoContent
 handleReset ServerState{..} pid = liftIO . atomically $

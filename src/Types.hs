@@ -36,6 +36,7 @@ module Types
   , newServerState
   , newPlayerId
   , appendHistory
+  , sourceHistoryRange
   , sourceHistory
 
   -- * Utility Functions
@@ -56,7 +57,8 @@ import           Data.ByteString.Builder
 import           Data.ByteString.Lazy       (LazyByteString)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
-import           Data.Sequence              (Seq, (|>), (!?))
+import           Data.Sequence              (Seq, (!?), (|>))
+import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Text.Lazy             as TL
@@ -431,6 +433,23 @@ appendHistory :: ServerState -> Event -> STM ()
 appendHistory ServerState{..} =
   modifyTVar' eventHistory . flip (|>)
 
+-- | Get the 'n'th event in the history, or block if that event doesn't
+-- exist yet. 'n' is an index must be a non-negative integer.
+nthEvent :: ServerState -> Int -> IO Event
+nthEvent ServerState{..} n = atomically $
+  Seq.lookup n
+  <$> readTVar eventHistory
+  >>= maybe retry pure
+
+-- | A finite stream of history values from 'start' to 'end'.
+sourceHistoryRange :: ServerState -> Int -> Int -> SourceT IO Event
+sourceHistoryRange server start end = fromStepT (go start)
+  where
+    go n | n > end = Source.Stop
+         | otherwise = Source.Effect $ do
+             event <- nthEvent server n
+             return $ Source.Yield event (go (n+1))
+
 -- | Get the next unread event in the history for the given player.
 --
 -- If the 'PlayerId' requested is not registered, 'Nothing' is
@@ -456,7 +475,7 @@ sourceHistory server pid = fromStepT loop
     loop = Source.Effect $ do
       mevent <- atomically $ popHistory server pid
       return $ case mevent of
-        Nothing -> Source.Stop
+        Nothing    -> Source.Stop
         Just event -> Source.Yield event loop
 
 --------------------------------------------------------------------------------
