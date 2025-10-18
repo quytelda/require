@@ -24,6 +24,7 @@ module Types
   , Event(..)
   , eventSource
   , displayEvent
+  , EventRecord(..)
 
     -- * Errors
   , GameError(..)
@@ -442,13 +443,13 @@ nthEvent ServerState{..} n = atomically $
   >>= maybe retry pure
 
 -- | A finite stream of history values from 'start' to 'end'.
-sourceHistoryRange :: ServerState -> Int -> Int -> SourceT IO Event
+sourceHistoryRange :: ServerState -> Int -> Int -> SourceT IO EventRecord
 sourceHistoryRange server start end = fromStepT (go start)
   where
     go n | n > end = Source.Stop
          | otherwise = Source.Effect $ do
              event <- nthEvent server n
-             return $ Source.Yield event (go (n+1))
+             return $ Source.Yield (EventRecord n event) (go (n+1))
 
 -- | Get the next unread event in the history for the given player.
 --
@@ -477,6 +478,15 @@ sourceHistory server pid = fromStepT loop
       return $ case mevent of
         Nothing    -> Source.Stop
         Just event -> Source.Yield event loop
+
+-- | An event plus its index (eventId) in the event history.
+data EventRecord = EventRecord
+  { eventId    :: Int
+  , eventEntry :: Event
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON EventRecord
+instance FromJSON EventRecord
 
 --------------------------------------------------------------------------------
 -- Utility Functions

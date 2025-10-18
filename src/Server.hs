@@ -32,7 +32,7 @@ type RequireAPI
   :<|> "join" :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
   :> (    "events" :> EventGet Event
-     :<|> "range"  :> QueryParam "start" Int :> QueryParam "end" Int :> EventGet Event
+     :<|> "range"  :> QueryParam "start" Int :> QueryParam "end" Int :> EventGet EventRecord
      :<|> "poll"   :> Get '[JSON] (Seq Event)
      :<|> "reset"  :> Get '[JSON] NoContent
      -- state queries
@@ -141,7 +141,7 @@ handleRange
   -> PlayerId
   -> Maybe Int
   -> Maybe Int
-  -> Handler (EventStream Event)
+  -> Handler (EventStream EventRecord)
 handleRange server _ mstart mend =
   let start = fromMaybe 0 mstart
       end = fromMaybe (start + 8) mend
