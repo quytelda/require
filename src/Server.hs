@@ -65,6 +65,8 @@ type RequireAPI
             :> CompanyParam
             :> AmountParam
             :> EventReq
+          :<|> "setup"
+            :> Post '[JSON] [Tile]
           )
 
 requireServer :: ServerState -> Server RequireAPI
@@ -80,6 +82,7 @@ requireServer s =
          :<|> handleMarker s pid
          :<|> handleMoney s pid
          :<|> handleStock s pid
+         :<|> handleSetup s pid
        )
 
 requireAPI :: Proxy RequireAPI
@@ -210,3 +213,11 @@ handleStock
 handleStock server pid com amount =
   handleGameAction server (doStock pid com amount)
   $> NoContent
+
+handleSetup
+  :: ServerState
+  -> PlayerId
+  -> Handler [Tile]
+handleSetup server pid = do
+  handleMoney server pid 6000
+  replicateM 6 (handleDraw server pid)
