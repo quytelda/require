@@ -115,12 +115,9 @@ handleEvents server mstart mend =
 -- Generates a new player ID which is unique for this server and
 -- allocates resources for managing this client.
 handleJoin :: ServerState -> Handler PlayerId
-handleJoin server = liftIO $ do
-  pid <- atomically $ do
-    pid <- newPlayerId server
-    runGameAction server (doJoin pid)
-    return pid
-  putBuilderLn $ "New client allocated with PlayerID: " <> TBI.decimal pid
+handleJoin server = liftIO $ atomically $ do
+  pid <- newPlayerId server
+  runGameAction server (doJoin pid)
   return pid
 
 handleGameAction
@@ -139,8 +136,12 @@ handleDraw
   :: ServerState
   -> PlayerId
   -> Handler Tile
-handleDraw server pid =
-  handleGameAction server (doDraw pid)
+handleDraw server pid = do
+  tile <- handleGameAction server (doDraw pid)
+  liftIO $ putBuilderLn
+    $  "Tile " <> renderTile tile
+    <> " drawn by player " <> TBI.decimal pid
+  return tile
 
 handleMove
   :: ServerState

@@ -9,6 +9,7 @@ module Types
     Money
   , PlayerId
   , Tile
+  , renderTile
   , TileZone(..)
   , Company(..)
 
@@ -356,7 +357,7 @@ instance FromJSON Event where
 
 displayEvent :: Event -> TB.Builder
 displayEvent event =
-  "[EVENT/" <> TBI.decimal (eventSource event) <> "]: "
+  "Player " <> TBI.decimal (eventSource event) <> ": "
   <> displayEvent' event
   where
     displayEvent' (JoinEvent   _) = "JOIN"
@@ -480,7 +481,16 @@ instance FromJSON EventRecord
 
 logEvents :: ServerState -> IO ()
 logEvents server =
-  mapM_ (nthEvent server >=> putBuilderLn . displayEvent) [0..]
+  mapM_ (\n -> nthEvent server n >>= printEventWithIndex n) [0..]
+  where
+    paddedDecimal width =
+      TB.fromLazyText
+      . TL.justifyRight width '0'
+      . TB.toLazyText
+      . TBI.decimal
+    printEventWithIndex n event = putBuilderLn $
+      "[EVENT/" <> paddedDecimal 4 n <> "]: "
+      <> displayEvent event
 
 --------------------------------------------------------------------------------
 -- Utility Functions
