@@ -13,6 +13,8 @@ import           Data.Functor
 import           Data.IntMap.Strict         (IntMap)
 import           Data.Maybe
 import           Data.Text                  (Text)
+import qualified Data.Text.Lazy             as TL
+import qualified Data.Text.Lazy.Builder     as TB
 import qualified Data.Text.Lazy.Builder.Int as TBI
 import           Network.Wai.Handler.Warp
 import           Servant
@@ -44,7 +46,7 @@ type RequireAPI
 
   -- Event Requests
   :<|> "join"
-       :> RequiredParam "name" Text
+       :> QueryParam "name" Text
        :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
        :> (    "draw"
@@ -145,11 +147,17 @@ handleHistory server index = do
 --
 -- Generates a new player ID which is unique for this server and
 -- allocates resources for managing this client.
-handleJoin :: ServerState -> Text -> Handler PlayerId
-handleJoin server name = liftIO $ atomically $ do
+handleJoin :: ServerState -> Maybe Text -> Handler PlayerId
+handleJoin server mname = liftIO $ atomically $ do
   pid <- newPlayerId server
+  let name = fromMaybe (defaultName pid) mname
   runGameAction server (doJoin pid name)
   return pid
+  where
+    defaultName pid =
+      TL.toStrict
+      $ TB.toLazyText
+      $ "Player " <> TBI.decimal pid
 
 handleGameAction
   :: ServerState
