@@ -12,8 +12,8 @@ main :: IO ()
 main = do
   server <- newServerState
   putBuilderLn
-    $ "Starting new server with server ID: "
-    <> TBI.decimal (serverId server)
+    $ "Starting new server on port " <> TBI.decimal (serverPort server)
+    <> " with server ID: " <> TBI.decimal (serverId server)
   concurrently_
     (runServer server)
     (logEvents server)

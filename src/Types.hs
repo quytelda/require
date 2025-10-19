@@ -74,6 +74,7 @@ import qualified Data.Text.Lazy.Builder.Int as TBI
 import           Data.Text.Lazy.Encoding    (encodeUtf8Builder)
 import qualified Data.Text.Lazy.IO          as TLIO
 import qualified Data.Text.Read             as Read
+import           Network.Wai.Handler.Warp   (Port)
 import           Servant.Types.SourceT      as Source
 
 import           Data.Word
@@ -429,7 +430,8 @@ gameErrorToServerError err = err400 { errBody = describeGameError err }
 type ServerId = Word32
 
 data ServerState = ServerState
-  { serverId     :: ServerId -- ^ A random id to help clients recognize new sessions
+  { serverPort   :: Port -- ^ Which port this server is running on
+  , serverId     :: ServerId -- ^ A random id to help clients recognize new sessions
   , pidSource    :: TVar PlayerId -- ^ A source for unique 'PlayerId's
   , eventHistory :: TVar (Seq Event) -- ^ History of successful game events
   , gameState    :: TVar GameState -- ^ The current state of the game
@@ -437,7 +439,7 @@ data ServerState = ServerState
 
 newServerState :: IO ServerState
 newServerState =
-  ServerState
+  ServerState 11073
   <$> randomIO
   <*> newTVarIO 0
   <*> newTVarIO mempty

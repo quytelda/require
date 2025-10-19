@@ -78,7 +78,7 @@ requireAPI :: Proxy RequireAPI
 requireAPI = Proxy
 
 runServer :: ServerState -> IO ()
-runServer = run 11073 . serve requireAPI . requireServer
+runServer server = run (serverPort server) . serve requireAPI . requireServer $ server
 
 --------------------------------------------------------------------------------
 -- Servant Endpoint Handlers
