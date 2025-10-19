@@ -69,11 +69,11 @@ import           Data.Sequence              (Seq, (|>))
 import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified Data.Text.IO               as TIO
 import qualified Data.Text.Lazy             as TL
 import qualified Data.Text.Lazy.Builder     as TB
 import qualified Data.Text.Lazy.Builder.Int as TBI
 import           Data.Text.Lazy.Encoding    (encodeUtf8Builder)
-import qualified Data.Text.Lazy.IO          as TLIO
 import qualified Data.Text.Read             as Read
 import           Network.Wai.Handler.Warp   (Port)
 import           Servant.Types.SourceT      as Source
@@ -504,5 +504,14 @@ logEvents server =
 textBuilderToJSON :: TB.Builder -> Value
 textBuilderToJSON = String . TL.toStrict . TB.toLazyText
 
+-- | Utility function to print a Text builder.
+--
+-- We need to convert the builder to strict Text and append the
+-- newline before rendering to avoid avoid interleaved output when
+-- printing from different threads.
 putBuilderLn :: TB.Builder -> IO ()
-putBuilderLn = TLIO.putStrLn . TB.toLazyText
+putBuilderLn =
+  TIO.putStr
+  . TL.toStrict
+  . TB.toLazyText
+  . (<> TB.singleton '\n')
