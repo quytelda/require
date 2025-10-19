@@ -5,6 +5,8 @@
 
 module Server (runServer) where
 
+import           Control.Concurrent
+import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
@@ -36,6 +38,9 @@ type RequireAPI
        :> QueryParam "start" Int
        :> QueryParam "end" Int
        :> EventGet EventRecord
+  :<|> "history"
+       :> Capture "index" Int
+       :> Get '[JSON] Event
 
   -- Event Requests
   :<|> "join"
@@ -68,6 +73,7 @@ requireServer s =
   :<|> handleState s
   :<|> handlePlayers s
   :<|> handleEvents s
+  :<|> handleHistory s
   :<|> handleJoin s
   :<|> (\pid -> handleDraw s pid
          :<|> handleMove s pid
@@ -108,6 +114,26 @@ handleEvents server mstart mend =
   let start = fromMaybe 0 mstart
       end = fromMaybe (start + 8) mend
   in return $ sourceToEventStream $ sourceHistoryRange server start end
+
+handleHistory
+  :: ServerState
+  -> Int
+  -> Handler Event
+handleHistory server index = do
+  result <- liftIO $ race
+    (threadDelay delay)
+    (nthEvent server index)
+  case result of
+    Right event -> return event
+    Left ()     -> throwError timeoutError
+  where
+    timeoutError = ServerError
+      { errHTTPCode = 408
+      , errReasonPhrase = "Request Timeout"
+      , errBody = "The requested event does not exist yet."
+      , errHeaders = []
+      }
+    delay = 30 * 1000000 -- 30sec in microseconds
 
 --------------------------------------------------------------------------------
 -- Handlers for Game Event Requests

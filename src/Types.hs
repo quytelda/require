@@ -40,6 +40,7 @@ module Types
   , newPlayerId
     -- ** Event History
   , appendHistory
+  , nthEvent
   , sourceHistoryRange
   , EventRecord(..)
   , logEvents
