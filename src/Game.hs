@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Game
   ( -- * Event Handling
     doJoin
@@ -21,9 +23,10 @@ module Game
 import           Control.Monad
 import           Control.Monad.State
 import           Data.Functor
-import qualified Data.IntSet         as IntSet
+import qualified Data.IntMap.Strict  as IntMap
 import qualified Data.Map.Strict     as Map
 import           Data.Maybe
+import           Data.Text           (Text)
 import           System.Random
 
 import           Types
@@ -31,13 +34,13 @@ import           Types
 --------------------------------------------------------------------------------
 -- Event Handling
 
-doJoin :: PlayerId -> GameAction ()
-doJoin pid = withEvent (JoinEvent pid) $ do
+doJoin :: PlayerId -> Text -> GameAction ()
+doJoin pid name = withEvent (JoinEvent pid name) $ do
   exists <- isValidPlayer pid
   when exists $
     throwGame $ InvalidPlayer pid
 
-  modify' $ \game -> game { gamePlayers = IntSet.insert pid (gamePlayers game) }
+  modify' $ \game -> game { gamePlayers = IntMap.insert pid name (gamePlayers game) }
 
 doDraw :: PlayerId -> GameAction Tile
 doDraw pid = withEvent (DrawEvent pid) $ do
@@ -94,7 +97,7 @@ doStock pid com amount = withEvent (StockEvent pid com amount) $ do
 -- Managing Game State
 
 isValidPlayer :: PlayerId -> Game Bool
-isValidPlayer pid = gets $ IntSet.member pid . gamePlayers
+isValidPlayer pid = gets $ IntMap.member pid . gamePlayers
 
 checkPlayerId :: PlayerId -> Game ()
 checkPlayerId pid = do

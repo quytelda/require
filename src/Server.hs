@@ -3,15 +3,15 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module Server where
+module Server (runServer) where
 
 import           Control.Concurrent.STM
 import           Control.Monad.Except
 import           Data.Functor
-import           Data.IntSet                (IntSet)
+import           Data.IntMap.Strict         (IntMap)
 import           Data.Maybe
+import           Data.Text                  (Text)
 import qualified Data.Text.Lazy.Builder.Int as TBI
-
 import           Network.Wai.Handler.Warp
 import           Servant
 
@@ -29,7 +29,7 @@ type RequireAPI
   -- State Queries
   =    "serverid" :> Get '[JSON] ServerId
   :<|> "state"    :> Get '[JSON] GameState
-  :<|> "players"  :> Get '[JSON] IntSet
+  :<|> "players"  :> Get '[JSON] (IntMap Text)
 
   -- Event Broadcast
   :<|> "events"
@@ -38,7 +38,9 @@ type RequireAPI
        :> EventGet EventRecord
 
   -- Event Requests
-  :<|> "join" :> Post '[JSON] PlayerId
+  :<|> "join"
+       :> RequiredParam "name" Text
+       :> Post '[JSON] PlayerId
   :<|> Capture "PlayerId" PlayerId
        :> (    "draw"
             :> Post '[JSON] Tile
@@ -94,7 +96,7 @@ handleServerId ServerState{..} = return serverId
 handleState :: ServerState -> Handler GameState
 handleState ServerState{..} = liftIO $ readTVarIO gameState
 
-handlePlayers :: ServerState -> Handler IntSet
+handlePlayers :: ServerState -> Handler (IntMap Text)
 handlePlayers ServerState{..} = liftIO $ gamePlayers <$> readTVarIO gameState
 
 handleEvents
@@ -114,10 +116,10 @@ handleEvents server mstart mend =
 --
 -- Generates a new player ID which is unique for this server and
 -- allocates resources for managing this client.
-handleJoin :: ServerState -> Handler PlayerId
-handleJoin server = liftIO $ atomically $ do
+handleJoin :: ServerState -> Text -> Handler PlayerId
+handleJoin server name = liftIO $ atomically $ do
   pid <- newPlayerId server
-  runGameAction server (doJoin pid)
+  runGameAction server (doJoin pid name)
   return pid
 
 handleGameAction

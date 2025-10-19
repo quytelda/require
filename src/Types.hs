@@ -60,8 +60,8 @@ import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.ByteString.Builder
 import           Data.ByteString.Lazy       (LazyByteString)
-import           Data.IntSet                (IntSet)
-import qualified Data.IntSet                as IntSet
+import           Data.IntMap.Strict         (IntMap)
+import qualified Data.IntMap.Strict         as IntMap
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import           Data.Sequence              (Seq, (|>))
@@ -206,7 +206,7 @@ type Stocks = Map Company Int
 -- | The complete set of information necessary to describe the game
 -- state
 data GameState = GameState
-  { gamePlayers :: IntSet -- ^ The set of active 'PlayerId's
+  { gamePlayers :: IntMap Text -- ^ The set of active 'PlayerId's
   , gameTiles   :: Map Tile TileZone -- ^ The current state of each game tile
   , gameMarkers :: Map Company Tile -- ^ The current state of each company marker
   , gameMoney   :: Map PlayerId Money -- ^ The distribution of money
@@ -225,7 +225,7 @@ instance ToJSON GameState where
 
 defaultGame :: GameState
 defaultGame = GameState
-  { gamePlayers = IntSet.empty
+  { gamePlayers = IntMap.empty
   , gameTiles   = Map.fromList $ map (,Pool) allTiles
   , gameMarkers = Map.empty
   , gameMoney   = Map.singleton 0 242000 -- 60*100 + 40*500 + 36*1000 + 36*5000
@@ -284,7 +284,7 @@ withEvent = fmap . (,)
 -- | Events represents game actions which alter the game state and
 -- must be broadcast to all players.
 data Event
-  = JoinEvent   PlayerId -- ^ A new player is joining
+  = JoinEvent   PlayerId Text -- ^ A new player is joining
   | DrawEvent   PlayerId -- ^ Draw a tile
   | MoveEvent   PlayerId Tile TileZone TileZone -- ^ Move a tile between zones
   | MarkerEvent PlayerId Company (Maybe Tile) -- ^ Place or remove a company marker tile
@@ -294,7 +294,7 @@ data Event
 
 -- | From which player did this event originate?
 eventSource :: Event -> PlayerId
-eventSource (JoinEvent   pid)       = pid
+eventSource (JoinEvent   pid _)     = pid
 eventSource (DrawEvent   pid)       = pid
 eventSource (MoveEvent   pid _ _ _) = pid
 eventSource (MarkerEvent pid _ _)   = pid
@@ -302,9 +302,10 @@ eventSource (MoneyEvent  pid _)     = pid
 eventSource (StockEvent  pid _ _)   = pid
 
 instance ToJSON Event where
-  toJSON (JoinEvent pid) =
+  toJSON (JoinEvent pid name) =
     object [ "type" .= String "join"
            , "source" .= pid
+           , "name" .= name
            ]
   toJSON (DrawEvent pid) =
     object [ "type" .= String "draw"
@@ -340,7 +341,8 @@ instance FromJSON Event where
     evType <- obj .: "type" :: Parser Text
     pid <- obj .: "source" :: Parser PlayerId
     case evType of
-      "join"    -> return $ JoinEvent pid
+      "join"    -> JoinEvent pid
+                   <$> obj .: "name"
       "draw"    -> return $ DrawEvent pid
       "move"    -> MoveEvent pid
                    <$> obj .: "tile"
@@ -361,7 +363,8 @@ displayEvent event =
   "Player " <> TBI.decimal (eventSource event) <> ": "
   <> displayEvent' event
   where
-    displayEvent' (JoinEvent   _) = "JOIN"
+    displayEvent' (JoinEvent   _ name) =
+      "JOIN as \"" <> TB.fromText name <> "\""
     displayEvent' (DrawEvent   _) = "DRAW"
     displayEvent' (MoveEvent   _ tile src dst) =
       "MOVE " <> renderTile tile
