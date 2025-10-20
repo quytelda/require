@@ -183,9 +183,14 @@ renderCompany Wonder    = "Wonder"
 renderCompany Century   = "Century"
 renderCompany Important = "Important"
 
-instance ToJSON Company
+instance ToJSON Company where
+  toJSON = textBuilderToJSON . renderCompany
+
 instance FromJSON Company
-instance ToJSONKey Company
+
+instance ToJSONKey Company where
+  toJSONKey = toJSONKeyText (TL.toStrict . TB.toLazyText . renderCompany)
+
 
 instance FromHttpApiData Company where
   parseQueryParam "Triangle"  = Right Triangle
