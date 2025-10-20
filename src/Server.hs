@@ -70,6 +70,9 @@ type RequireAPI
             :> Post '[JSON] [Tile]
           )
 
+type StaticAPI = "static" :> Raw
+type FullAPI = RequireAPI :<|> StaticAPI
+
 requireServer :: ServerState -> Server RequireAPI
 requireServer s =
   handleServerId s
@@ -86,11 +89,16 @@ requireServer s =
          :<|> handleSetup s pid
        )
 
-requireAPI :: Proxy RequireAPI
-requireAPI = Proxy
+fullServer :: ServerState -> Server FullAPI
+fullServer server =
+  requireServer server
+  :<|> serveDirectoryFileServer "static"
+
+fullAPI :: Proxy FullAPI
+fullAPI = Proxy
 
 runServer :: ServerState -> IO ()
-runServer server = run (serverPort server) . serve requireAPI . requireServer $ server
+runServer server = run (serverPort server) . serve fullAPI . fullServer $ server
 
 --------------------------------------------------------------------------------
 -- Servant Endpoint Handlers
