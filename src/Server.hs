@@ -225,6 +225,6 @@ handleSetup
   :: ServerState
   -> PlayerId
   -> Handler [Tile]
-handleSetup server pid = do
+handleSetup server pid =
   handleMoney server pid 6000
-  replicateM 6 (handleDraw server pid)
+  *> replicateM 6 (handleDraw server pid)
