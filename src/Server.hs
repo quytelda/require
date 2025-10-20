@@ -37,9 +37,8 @@ type RequireAPI
 
   -- Event Broadcast
   :<|> "events"
-       :> QueryParam "start" Int
-       :> QueryParam "end" Int
-       :> EventGet EventRecord
+       :> Header "Last-Event-ID" Int
+       :> EventGet ServerEvent
   :<|> "history"
        :> Capture "index" Int
        :> Get '[JSON] Event
@@ -113,12 +112,10 @@ handlePlayers ServerState{..} = liftIO $ gamePlayers <$> readTVarIO gameState
 handleEvents
   :: ServerState
   -> Maybe Int
-  -> Maybe Int
-  -> Handler (EventStream EventRecord)
-handleEvents server mstart mend =
-  let start = fromMaybe 0 mstart
-      end = fromMaybe (start + 8) mend
-  in return $ sourceToEventStream $ sourceHistoryRange server start end
+  -> Handler (EventStream ServerEvent)
+handleEvents server mlastSeen =
+  let start = maybe 0 (+1) mlastSeen
+  in return $ sourceToEventStream $ sourceHistory server start
 
 handleHistory
   :: ServerState

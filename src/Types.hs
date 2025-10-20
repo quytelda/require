@@ -27,7 +27,9 @@ module Types
     -- * Events
   , Event(..)
   , eventSource
+  , renderEventType
   , displayEvent
+  , ServerEvent(..)
 
     -- * Errors
   , GameError(..)
@@ -41,8 +43,7 @@ module Types
     -- ** Event History
   , appendHistory
   , nthEvent
-  , sourceHistoryRange
-  , EventRecord(..)
+  , sourceHistory
   , logEvents
 
   -- * Utility Functions
@@ -307,6 +308,14 @@ eventSource (MarkerEvent pid _ _)   = pid
 eventSource (MoneyEvent  pid _)     = pid
 eventSource (StockEvent  pid _ _)   = pid
 
+renderEventType :: Event -> Builder
+renderEventType (JoinEvent   _ _)     = "join"
+renderEventType (DrawEvent   _)       = "draw"
+renderEventType (MoveEvent   _ _ _ _) = "move"
+renderEventType (MarkerEvent _ _ _)   = "marker"
+renderEventType (MoneyEvent  _ _)     = "money"
+renderEventType (StockEvent  _ _ _)   = "stock"
+
 instance ToJSON Event where
   toJSON (JoinEvent pid name) =
     object [ "type" .= String "join"
@@ -473,22 +482,19 @@ nthEvent ServerState{..} n = atomically $
   >>= maybe retry pure
 
 -- | A finite stream of history values from 'start' to 'end'.
-sourceHistoryRange :: ServerState -> Int -> Int -> SourceT IO EventRecord
-sourceHistoryRange server start end = fromStepT (go start)
+sourceHistory :: ServerState -> Int -> SourceT IO ServerEvent
+sourceHistory server start = fromStepT $ Source.Yield comment (go start)
   where
-    go n | n > end = Source.Stop
-         | otherwise = Source.Effect $ do
-             event <- nthEvent server n
-             return $ Source.Yield (EventRecord n event) (go (n+1))
+    comment = CommentEvent $ "Server Events from " <> intDec start
+    go n = Source.Effect $ do
+      event <- nthEvent server n
+      return $ Source.Yield (ServerEvent n event) (go (n+1))
 
--- | An event plus its index (eventId) in the event history.
-data EventRecord = EventRecord
-  { eventId    :: Int
-  , eventEntry :: Event
-  } deriving (Eq, Show, Generic)
-
-instance ToJSON EventRecord
-instance FromJSON EventRecord
+-- | An event sent by a server.
+data ServerEvent
+  = ServerEvent Int Event
+  | CommentEvent Builder
+  deriving (Show)
 
 logEvents :: ServerState -> IO ()
 logEvents server =
