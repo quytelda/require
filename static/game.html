@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    Hello, World!
+    <script>
+      const eventSource = new EventSource("/events");
+      eventSource.addEventListener("join", console.log);
+      eventSource.addEventListener("draw", console.log);
+      eventSource.addEventListener("move", console.log);
+      eventSource.addEventListener("marker", console.log);
+      eventSource.addEventListener("money", console.log);
+      eventSource.addEventListener("stock", console.log);
+    </script>
+  </body>
+</html>
