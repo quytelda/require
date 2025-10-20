@@ -52,7 +52,7 @@ type RequireAPI
             :> Post '[JSON] Tile
           :<|> "move"
             :> TileParam
-            :> RequiredParam "src" TileZone
+            :> QueryParam "src" TileZone
             :> RequiredParam "dst" TileZone
             :> EventReq
           :<|> "marker"
@@ -183,12 +183,14 @@ handleMove
   :: ServerState
   -> PlayerId
   -> Tile
-  -> TileZone
+  -> Maybe TileZone
   -> TileZone
   -> Handler NoContent
-handleMove server pid tile src dst =
+handleMove server pid tile msrc dst =
   handleGameAction server (doMove pid src dst tile)
   $> NoContent
+  where
+    src = fromMaybe (Hand pid) msrc
 
 handleMarker
   :: ServerState
