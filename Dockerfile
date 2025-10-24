@@ -10,10 +10,14 @@ RUN set -eux \
 
 USER build:build
 
-RUN git clone https://github.com/quytelda/require.git /data/require
-
+# Add project files
+ADD --chown=build:build . /data/require/
 WORKDIR /data/require
 
 RUN set -eux \
     && cabal update \
-    && cabal build --enable-executable-static
+    && cabal build
+
+EXPOSE 11073/tcp
+
+ENTRYPOINT ["/usr/bin/cabal", "run"]
