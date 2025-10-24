@@ -8,7 +8,8 @@ module Server (runServer) where
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
-import           Control.Monad.Except
+import           Control.Monad
+import           Control.Monad.Trans
 import           Data.Functor
 import           Data.IntMap.Strict         (IntMap)
 import           Data.Maybe
