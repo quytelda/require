@@ -29,6 +29,7 @@ library
       Event
       Game
       Game.Internal
+      Game.Types
       Server
       SSE
       Types
