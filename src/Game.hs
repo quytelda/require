@@ -1,8 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Game
-  ( -- * Event Handling
-    doJoin
+  ( -- * Game Actions
+    GameAction
+  , runGameAction
+  , withEvent
+
+  -- * Event Handling
+  , doJoin
   , doDraw
   , doMove
   , doMarker
@@ -22,6 +27,7 @@ module Game
 
 import           Control.Monad
 import           Control.Monad.State
+import           Control.Monad.STM
 import           Data.Functor
 import qualified Data.IntMap.Strict  as IntMap
 import qualified Data.Map.Strict     as Map
@@ -29,7 +35,28 @@ import           Data.Maybe
 import           Data.Text           (Text)
 import           System.Random
 
-import           Types
+import           Error
+import           Event
+import           Game.Internal
+import           Game.Types
+import           Server.Types
+
+--------------------------------------------------------------------------------
+-- Game Actions
+
+-- | A game action that generates an event.
+type GameAction a = Game (Event, a)
+
+-- | Run an action and publish the event it generates.
+runGameAction :: ServerState -> GameAction a -> STM a
+runGameAction server action = do
+  (event, result) <- runGame action (gameState server)
+  appendHistory server event
+  return result
+
+-- | Utility function for writing 'GameActions'.
+withEvent :: Event -> Game a -> GameAction a
+withEvent = fmap . (,)
 
 --------------------------------------------------------------------------------
 -- Event Handling

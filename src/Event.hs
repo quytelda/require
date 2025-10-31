@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Event where
+module Event
+  ( -- * Events
+    Event(..)
+  , eventSource
+  , renderEventType
+  , displayEvent
+  ) where
 
 import           Data.Aeson
 import           Data.Aeson.Types

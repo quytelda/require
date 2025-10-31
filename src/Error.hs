@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Error where
+module Error
+  ( -- * Errors
+    GameError(..)
+  , gameErrorToServerError
+  ) where
 
 import           Control.Exception
 import           Data.ByteString.Builder

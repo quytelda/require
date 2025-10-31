@@ -20,9 +20,13 @@ import qualified Data.Text.Lazy.Builder.Int as TBI
 import           Network.Wai.Handler.Warp
 import           Servant
 
+import           Error
+import           Event
 import           Game
+import           Game.Internal
+import           Game.Types
+import           Server.Types
 import           SSE
-import           Types
 
 type RequiredParam = QueryParam' '[Required, Strict]
 type TileParam = RequiredParam "tile" Tile

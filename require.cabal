@@ -33,7 +33,6 @@ library
       Server
       Server.Types
       SSE
-      Types
   other-modules:
       Paths_require
   autogen-modules:

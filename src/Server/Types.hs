@@ -1,7 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Server.Types where
+module Server.Types
+  ( ServerId
+  , ServerState(..)
+  , newServerState
+  , newPlayerId
+
+    -- * Event History
+  , ServerEvent(..)
+  , appendHistory
+  , nthEvent
+  , sourceHistory
+  , logEvents
+  ) where
 
 import           Control.Concurrent.STM
 import           Data.ByteString.Builder

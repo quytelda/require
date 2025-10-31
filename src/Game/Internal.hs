@@ -4,7 +4,22 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TupleSections         #-}
 
-module Game.Internal where
+module Game.Internal
+  ( -- * Basic Game Types
+    Money
+  , PlayerId
+  , Tile
+  , renderTile
+  , allTiles
+  , TileZone(..)
+  , renderTileZone
+  , Company(..)
+  , renderCompany
+
+  -- * Utility Functions
+  , textBuilderToJSON
+  , putBuilderLn
+  ) where
 
 import           Control.Monad
 import           Data.Aeson
@@ -59,24 +74,6 @@ instance ToJSONKey Tile where
 
 instance FromHttpApiData Tile where
   parseQueryParam = first T.pack . parseTile
-
---------------------------------------------------------------------------------
--- Utility Functions
-
-textBuilderToJSON :: TB.Builder -> Value
-textBuilderToJSON = String . TL.toStrict . TB.toLazyText
-
--- | Utility function to print a Text builder.
---
--- We need to convert the builder to strict Text and append the
--- newline before rendering to avoid avoid interleaved output when
--- printing from different threads.
-putBuilderLn :: TB.Builder -> IO ()
-putBuilderLn =
-  TIO.putStr
-  . TL.toStrict
-  . TB.toLazyText
-  . (<> TB.singleton '\n')
 
 -- | The set of all possible tiles
 allTiles :: [Tile]
@@ -152,3 +149,21 @@ instance FromHttpApiData Company where
   parseQueryParam "Century"   = Right Century
   parseQueryParam "Important" = Right Important
   parseQueryParam _           = Left "invalid company name"
+
+--------------------------------------------------------------------------------
+-- Utility Functions
+
+textBuilderToJSON :: TB.Builder -> Value
+textBuilderToJSON = String . TL.toStrict . TB.toLazyText
+
+-- | Utility function to print a Text builder.
+--
+-- We need to convert the builder to strict Text and append the
+-- newline before rendering to avoid avoid interleaved output when
+-- printing from different threads.
+putBuilderLn :: TB.Builder -> IO ()
+putBuilderLn =
+  TIO.putStr
+  . TL.toStrict
+  . TB.toLazyText
+  . (<> TB.singleton '\n')

@@ -8,8 +8,9 @@ import qualified Data.Text.Lazy.Builder.Int as TBI
 import           System.Console.GetOpt
 import           System.Environment
 
+import           Game.Internal
 import           Server
-import           Types
+import           Server.Types
 
 options :: [OptDescr (ServerState -> ServerState)]
 options =

@@ -16,7 +16,8 @@ import           Data.Text               (Text)
 import           Network.HTTP.Media      ((//))
 import           Servant
 
-import           Types
+import           Event
+import           Server.Types
 
 -- | A content type for Server Sent Events.
 data SSE

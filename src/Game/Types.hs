@@ -4,7 +4,14 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TupleSections         #-}
 
-module Game.Types where
+module Game.Types
+  ( Stocks
+  , GameState(..)
+  , defaultGame
+  , newGameState
+  , Game(..)
+  , throwGame
+  ) where
 
 import           Control.Applicative
 import           Control.Concurrent.STM
